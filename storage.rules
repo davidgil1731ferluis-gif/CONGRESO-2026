@@ -1,0 +1,7 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Solo el servidor usa esta área temporal. Drive conserva la evidencia final.
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}

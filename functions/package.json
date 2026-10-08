@@ -1,0 +1,1 @@
+{"name":"eventflow-functions","private":true,"type":"module","main":"index.mjs","engines":{"node":"22"},"scripts":{"test":"node --test ../tests/*.test.mjs","check":"node --check index.mjs"},"dependencies":{"firebase-admin":"^13.0.0","firebase-functions":"^6.0.0"}}

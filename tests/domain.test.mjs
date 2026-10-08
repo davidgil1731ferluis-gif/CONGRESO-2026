@@ -1,0 +1,18 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {visibleQuestions,validateAnswers,validateSchema,attendanceGate,validateImage} from '../functions/domain.mjs';
+const questions=[{id:'profile',label:'Perfil',type:'select',options:['Estudiante','Profesional'],required:true,step:1},{id:'university',label:'Universidad',type:'text',required:true,step:1,condition:{field:'profile',operator:'eq',value:'Estudiante'}},{id:'campus',label:'Sede',type:'text',required:true,step:2,condition:{field:'university',operator:'neq',value:'Otra'}}];
+test('Una pregunta oculta obligatoria no bloquea ni conserva respuestas viejas',()=>{assert.deepEqual(validateAnswers(questions,{profile:'Profesional',university:'Dato anterior',campus:'Dato viejo'}),{profile:'Profesional'});});
+test('Condición encadenada respeta la visibilidad del padre',()=>{assert.deepEqual(visibleQuestions(questions,{profile:'Profesional',university:'Universidad'}).map(q=>q.id),['profile']);});
+test('Pregunta condicional visible sí es obligatoria',()=>{assert.throws(()=>validateAnswers(questions,{profile:'Estudiante'}),/Universidad/);});
+test('No admite opciones manipuladas desde el navegador',()=>{assert.throws(()=>validateAnswers(questions,{profile:'Administrador'}),/Opción inválida/);});
+test('No admite condiciones hacia el futuro ni ciclos',()=>{const q=structuredClone(questions);q[0].condition={field:'university',operator:'eq',value:'x'};assert.throws(()=>validateSchema({title:'Evento',description:'',questions:q}),/anterior/);});
+test('No admite dependencias de pasos posteriores',()=>{const q=structuredClone(questions);q[0].step=2;assert.throws(()=>validateSchema({title:'Evento',description:'',questions:q}),/posterior/);});
+const c={active:true,opensAt:'2026-11-20T20:00:00Z',closesAt:'2026-11-20T22:00:00Z'},r={status:'approved',payment:'approved'};
+test('17:00 Bogotá es 22:00 UTC: acepta el límite y rechaza después',()=>{assert.equal(attendanceGate(r,c,Date.parse('2026-11-20T17:00:00-05:00')),true);assert.throws(()=>attendanceGate(r,c,Date.parse('2026-11-20T17:00:00.001-05:00')),/terminó/);});
+test('Rechaza antes de apertura y conferencia deshabilitada',()=>{assert.throws(()=>attendanceGate(r,c,Date.parse('2026-11-20T19:59:59Z')),/Todavía/);assert.throws(()=>attendanceGate(r,{...c,active:false}),/habilitada/);});
+test('La asistencia exige aprobación de inscripción y pago',()=>{assert.throws(()=>attendanceGate({...r,status:'pending'},c),/inscripción/);assert.throws(()=>attendanceGate({...r,payment:'pending'},c),/pago/);});
+test('Rechaza archivos disfrazados de imagen',()=>{assert.throws(()=>validateImage(Buffer.from('<html>no image</html>').toString('base64'),'image/png'),/contenido/);});
+test('Acepta firma PNG válida y rechaza archivo excesivo',()=>{const png=Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]);assert.equal(validateImage(png.toString('base64'),'image/png'),12);assert.throws(()=>validateImage(Buffer.alloc(3*1024*1024+1).toString('base64'),'image/png'),/3 MB/);});
+test('La validación del navegador coincide con la del servidor',async()=>{assert.equal(await readFile(new URL('../web/domain.mjs',import.meta.url),'utf8'),await readFile(new URL('../functions/domain.mjs',import.meta.url),'utf8'));});

@@ -1,0 +1,8 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Todas las operaciones pasan por las funciones; el Admin SDK valida roles y estados.
+    // Ningún participante puede escribir aprobaciones, pagos o marcas horarias.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

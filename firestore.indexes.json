@@ -1,0 +1,1 @@
+{"indexes":[{"collectionGroup":"jobs","queryScope":"COLLECTION","fields":[{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"nextAttempt","order":"ASCENDING"}]}],"fieldOverrides":[{"collectionGroup":"registrations","fieldPath":"answers","indexes":[]},{"collectionGroup":"jobs","fieldPath":"payload","indexes":[]}]}
