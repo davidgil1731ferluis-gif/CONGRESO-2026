@@ -1,30 +1,16 @@
-# Validación de la entrega
+# Validación · 9 de octubre de 2026
 
-Se ejecutaron **20 pruebas automatizadas**, todas aprobadas, con Node.js. No requieren instalar paquetes.
+Se ejecutaron 38 pruebas automatizadas, todas aprobadas, con Node.js. Se comprobó la sintaxis de los módulos de la interfaz y del servidor.
 
-```powershell
-node --test tests/*.test.mjs
-```
+- Registro sin contraseña, conservación del perfil, identificación y respuestas, inscripción repetida sin sobrescritura, activación condicionada al pago y separación de roles.
+- Categorías configurables, ponderaciones, rúbricas conservadas al editar o eliminar categorías, jurados asignados, calificaciones válidas, bloqueo de dobles envíos y consolidación tras la última evaluación.
+- Privacidad de claves: listados de participantes sin claves, acceso del ponente solo a sus conferencias vinculadas, rechazo de clave incorrecta e imagen válida obligatoria.
+- Formularios por secciones, preguntas condicionales, opciones, borradores, publicación y portadas personalizadas.
+- Estados, pago y límites horarios de Bogotá, firmas de imagen y separación de administración.
+- Apps Script mediante servicios simulados: textos y pasos de los correos por etapa, PDF consolidado con todos los jurados guardado en carpeta independiente, respaldo, HMAC, caducidad, replay, cuotas e idempotencia de correo.
 
-## Comprobado
+Ejecutar: `node --test tests/*.test.mjs`.
 
-- Preguntas obligatorias visibles y exclusión de respuestas ocultas.
-- Condiciones encadenadas, preguntas anteriores y orden de pasos.
-- Rechazo de opciones manipuladas y archivos que no corresponden al tipo de imagen.
-- Aprobación de inscripción y pago antes de registrar asistencia.
-- Apertura, cierre y deshabilitación de conferencias. Caso exacto: 17:00 Bogotá = 22:00 UTC; se rechaza el instante posterior.
-- Recorrido de la demo: crear, guardar borrador, publicar, inscribir, aprobar, validar pago y sellar. Repetir inscripción o sello no duplica registros.
-- Separación de administración y participante en la demo.
-- Validaciones idénticas entre el módulo compartido de la interfaz y el del servidor.
-- Apps Script, mediante servicios simulados: confirmación y respaldo, reintentos sin repetir correos, envío incierto en revisión, cuota agotada, confirmación atrasada que no reemplaza el estado nuevo, firma HMAC, caducidad y repetición de solicitudes.
-- Sintaxis de los módulos de la interfaz y del servidor; Apps Script se cargó y ejecutó en un entorno de prueba.
+## Límites de la validación
 
-## Pendiente en los servicios reales
-
-La vista previa no fue accesible desde el navegador de la sesión. **No se confirma QA visual ni interacción real de navegador**. La interfaz debe revisarse en móvil y computador después de levantarla o publicarla.
-
-No se dispuso del proyecto Firebase, carpetas, hoja, Gmail ni módulo de pagos. Por tanto quedan pendientes: despliegue de Functions/Firestore/Storage, reglas con usuarios reales, App Check, identidad del administrador, generación visual del PDF con Slides, permisos privados de Drive, envíos reales con copia/etiqueta y funcionamiento de la cola programada en Google.
-
-Las pruebas de Apps Script usan dobles de servicios y no certifican la disponibilidad ni las cuotas de la cuenta Google. Tampoco se realizó prueba de carga; no hay una cifra comprobada de usuarios simultáneos.
-
-No se publicaron repositorios ni sitios y no se enviaron correos durante la preparación. El paquete contiene una demo funcional y el código de integración para configurar.
+El frontend publicado opera en demostración. No se proporcionaron Firebase, Gmail, Drive, Sheets ni el módulo de pagos real. La instalación del servidor, los índices, App Check, el envío de mensajes, las firmas del proveedor de pago, la evaluación concurrente en Firestore y la generación visual de PDF en Google deben verificarse con cuentas de prueba después de conectar esos servicios. Los simuladores no certifican disponibilidad, permisos ni cuotas reales.

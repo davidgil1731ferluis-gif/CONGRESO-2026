@@ -1,16 +1,20 @@
 # EventFlow
 
-Aplicación de inscripciones a eventos para **GitHub Pages**, con el diseño Steep usado en TOOL. Interfaz en español, adaptable a móvil y computador.
+Aplicación de inscripciones a eventos para **GitHub Pages**, con diseño híbrido Steep, estudio azul y elementos institucionales. Interfaz en español, adaptable a móvil y computador.
+
+Consulte [MEJORAS_ACADEMICAS.md](MEJORAS_ACADEMICAS.md) para el nuevo recorrido de cuentas, roles, categorías editables, pósteres y evaluación.
 
 ## Qué viene incluido
 
 - Editor de formularios personalizados: respuesta corta, párrafo, correo, número, fecha, lista, selección única y múltiple.
 - Preguntas obligatorias, hasta 10 pasos y condiciones «igual a/contiene» o «diferente de/no contiene» respecto de preguntas anteriores. Las respuestas ocultas se excluyen del registro.
 - Borradores y publicación de versiones; enlace público por evento.
-- Cuentas de participantes y administrador con Firebase Authentication.
+- Creación de cuentas, inicio de sesión y consulta sin contraseña mediante enlaces privados de correo. Activación tras aprobar el pago, conservando los datos de inscripción.
+- Roles de administrador, ponente/expositor, autor de póster, jurado y asistente.
+- Categorías y rúbricas editables, asignación de jurados y formato PDF consolidado en una carpeta independiente de Drive.
 - Inscripción en espera, aprobada o no aprobada. Pago separado, con aprobación administrativa y referencia verificable.
 - Conferencias con ponente, lugar, apertura y cierre de asistencia en horario de Bogotá.
-- Imagen de evidencia de hasta 3 MB. El servidor valida los estados y el horario antes de sellar la asistencia.
+- Imagen de evidencia de hasta 3 MB. El servidor valida la clave única, los estados y el horario antes de sellar la asistencia.
 - Evidencias y certificados PDF privados en Drive; descarga del PDF mediante la cuenta del participante.
 - Confirmación de inscripción con copia, correos de estado y certificado adjunto; etiqueta en Gmail del organizador.
 - Respaldo en Sheets de inscripciones, respuestas, asistencia y procesos. Exportación CSV de inscripciones y asistencias.
@@ -20,7 +24,7 @@ Aplicación de inscripciones a eventos para **GitHub Pages**, con el diseño Ste
 
 El proyecto viene en **modo demo**. Es una demostración funcional que guarda datos en el navegador. No envía correos, no cobra, no crea archivos en Google y el enlace no comparte los datos entre dispositivos. La barra superior lo indica.
 
-El código de Firebase y Apps Script está incluido para instalarlo. **No está desplegado ni verificado en una cuenta real.** La comprobación visual del navegador quedó pendiente por un problema de acceso a la vista previa local en la sesión de preparación. Las pruebas automatizadas se describen en `VALIDACION.md`.
+El código de Firebase y Apps Script está incluido para instalarlo. **No está desplegado ni verificado en una cuenta real.** Las pruebas automatizadas se describen en `VALIDACION.md`.
 
 El módulo de pagos anterior no fue proporcionado. Se incluye una URL configurable para abrirlo y aprobación manual desde el administrador. La aprobación automática de ese módulo necesita adaptar su notificación de servidor; no se considera conectada por introducir una URL.
 
@@ -38,7 +42,7 @@ Abre `http://127.0.0.1:4188`. No abras `index.html` directamente porque usa mód
 2. Publica y usa **Compartir enlace**. En demo el enlace funciona con los datos de ese mismo navegador.
 3. Usa **Cambiar rol** para ver el participante de ejemplo.
 4. En administración, aprueba su inscripción y valida un pago con una referencia de prueba.
-5. Cambia otra vez al participante. Verás las conferencias y podrás subir una imagen de prueba para sellar.
+5. Cambia otra vez al participante. Verás las conferencias y podrás ingresar la clave de la conferencia y subir una imagen de prueba para sellar.
 6. En **Reportes**, revisa los procesos simulados y descarga los CSV.
 
 La demo muestra un participante preinscrito; si deseas probar el envío desde cero, crea otro evento y abre su enlace.

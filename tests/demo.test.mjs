@@ -21,11 +21,11 @@ test('Recorrido completo de demostración y separación de roles',async()=>{
  await call('saveConference',{conference:{eventId:draft.id,title:'Conferencia',speaker:'Ponente',location:'Sala',opensAt:new Date(Date.now()-60000).toISOString(),closesAt:new Date(Date.now()+60000).toISOString(),active:true}});
  const c=(await call('listConferences',{eventId:draft.id}))[0];
  await login('prueba@example.com','demo');
- await assert.rejects(()=>call('stamp',{registrationId:r.id,conferenceId:c.id,base64:png,mime:'image/png',fileName:'a.png'}),/pago/);
+ await assert.rejects(()=>call('stamp',{registrationId:r.id,conferenceId:c.id,code:c.attendanceCode,base64:png,mime:'image/png',fileName:'a.png'}),/pago/);
  await login('admin@example.com','demo');await call('updateRegistration',{registrationId:r.id,payment:'approved',reference:'VERIFICADO-001'});
  await login('prueba@example.com','demo');
- const a=await call('stamp',{registrationId:r.id,conferenceId:c.id,base64:png,mime:'image/png',fileName:'a.png'});
- assert.equal(a.certificateStatus,'demo');assert.equal((await call('stamp',{registrationId:r.id,conferenceId:c.id,base64:png,mime:'image/png',fileName:'a.png'})).id,a.id);
+ const a=await call('stamp',{registrationId:r.id,conferenceId:c.id,code:c.attendanceCode,base64:png,mime:'image/png',fileName:'a.png'});
+ assert.equal(a.certificateStatus,'demo');assert.equal((await call('stamp',{registrationId:r.id,conferenceId:c.id,code:c.attendanceCode,base64:png,mime:'image/png',fileName:'a.png'})).id,a.id);
  await assert.rejects(()=>call('getCertificate',{attendanceId:a.id}),/Apps Script/);
  assert.equal((await call('myAttendance')).length,1);
  await login('admin@example.com','demo');assert.equal((await call('listAttendance',{eventId:draft.id})).length,1);

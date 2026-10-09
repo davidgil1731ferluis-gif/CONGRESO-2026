@@ -1,0 +1,30 @@
+import {identity,participation,validateCategory,validateEvaluation,evaluationReport,fullyApproved} from './academic-domain.mjs';
+export function migrateAcademic(s){s.accounts||=[];s.categories||=[];s.posters||=[];s.evaluations||=[];s.conferenceSecrets||={};for(const c of s.conferences)s.conferenceSecrets[c.id]||=crypto.randomUUID().replaceAll('-','').slice(0,12).toUpperCase();for(const r of s.registrations){r.role||='attendee';r.identification||=r.id;s.accounts.find(a=>a.uid===r.uid)||s.accounts.push({uid:r.uid,email:r.email,name:r.name,identification:r.identification,role:r.role,activated:false});}}
+export function academicDemo(action,d,{state:s,user:u,id,enqueue}){
+ const admin=()=>{if(!u?.admin)throw Error('Acceso exclusivo del administrador.');};
+ const me=()=>{if(!u)throw Error('Inicie sesión para continuar.');};
+ let result;
+ switch(action){
+ case 'registerGuest':{
+  if(d.consent!==true)throw Error('Debe autorizar el tratamiento de datos.');const p=identity(d.profile),e=s.events.find(e=>e.id===d.eventId&&e.published);if(!e)throw Error('Formulario no disponible.');
+  // El adaptador principal valida las respuestas antes de invocar este módulo.
+  let a=s.accounts.find(a=>a.email===p.email);if(!a){a={...p,uid:id(),activated:false};s.accounts.push(a);}
+  const prior=s.registrations.find(r=>r.uid===a.uid&&r.eventId===e.id);if(!prior){const r={...p,id:id(),uid:a.uid,eventId:e.id,answers:d.answers,status:'pending',payment:'pending',version:e.version,createdAt:new Date().toISOString()};s.registrations.push(r);enqueue('registration',{...r,registrationId:r.id,eventTitle:e.title});}
+  result={ok:true,message:'Revise su correo para consultar su propuesta.'};break;
+ }
+ case 'requestAccess':result={ok:true};break;
+ case 'myProfile':me();result=s.accounts.find(a=>a.uid===u.uid)||{...u,role:u.admin?'admin':'attendee'};break;
+ case 'activateAccount':{me();const a=s.accounts.find(a=>a.uid===u.uid);if(!a||a.role!=='judge'&&!s.registrations.some(r=>r.uid===u.uid&&fullyApproved(r)))throw Error('La cuenta se activa después de aprobar la inscripción y el pago.');if(typeof d.password!=='string'||d.password.length<8)throw Error('Use una contraseña de al menos ocho caracteres.');a.activated=true;result=a;break;}
+ case 'listAccounts':admin();result=s.accounts;break;
+ case 'assignJudge':{admin();const email=String(d.email||'').trim().toLowerCase(),name=String(d.name||'').trim();if(!name||name.length>160||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw Error('Nombre y correo válidos requeridos.');let a=s.accounts.find(a=>a.email===email);if(a?.role==='admin'||email==='admin@example.com')throw Error('La cuenta administradora no se modifica.');if(!a){a={uid:id(),email,name,identification:'',activated:false};s.accounts.push(a);}a.role='judge';enqueue('judgeInvitation',{...a,eventId:'accounts'});result=a;break;}
+ case 'listCategories':admin();result=s.categories.filter(c=>!c.deleted&&c.eventId===d.eventId);break;
+ case 'saveCategory':{admin();const clean=validateCategory(d.category);let c=s.categories.find(c=>c.id===d.category.id&&!c.deleted);if(c&&c.eventId!==d.category.eventId)throw Error('La categoría pertenece a otro evento.');if(c)Object.assign(c,clean);else{s.categories.push(c={...clean,id:id(),eventId:d.category.eventId});}result=c;break;}
+ case 'deleteCategory':{admin();const c=s.categories.find(c=>c.id===d.categoryId);if(!c)throw Error('Categoría inexistente.');c.deleted=true;result={ok:true};break;}
+ case 'listPosters':{me();result=s.posters.filter(p=>(!d.eventId||p.eventId===d.eventId)&&(u.admin||p.judgeIds.includes(u.uid)||p.authorUid===u.uid)).map(p=>({...p,evaluations:s.evaluations.filter(e=>e.posterId===p.id&&(u.admin||e.judgeUid===u.uid))}));break;}
+ case 'savePoster':{admin();const p=d.poster,c=s.categories.find(c=>c.id===p.categoryId&&!c.deleted&&c.eventId===p.eventId),r=s.registrations.find(r=>r.id===p.authorRegistrationId&&r.eventId===p.eventId&&r.role==='poster'&&fullyApproved(r));if(!c||!r||!p.title?.trim()||p.title.length>200||!Array.isArray(p.judgeIds)||!p.judgeIds.length||new Set(p.judgeIds).size!==p.judgeIds.length||p.judgeIds.length>20||p.judgeIds.some(uid=>uid===r.uid||!s.accounts.some(a=>a.uid===uid&&a.role==='judge')))throw Error('Seleccione categoría, autor aprobado y jurados válidos distintos del autor.');const link=p.url?new URL(p.url):null;if(link&&link.protocol!=='https:')throw Error('El enlace del póster requiere HTTPS.');const old=s.posters.find(x=>x.id===p.id);if(old&&s.evaluations.some(e=>e.posterId===old.id))throw Error('Un póster con evaluaciones conserva su rúbrica y asignaciones.');const clean={id:old?.id||id(),eventId:p.eventId,title:p.title.trim(),url:p.url||'',authorRegistrationId:r.id,authorUid:r.uid,authorName:r.name,categoryId:c.id,rubric:structuredClone(c),judgeIds:p.judgeIds,reportStatus:'pending'};if(old)Object.assign(old,clean);else s.posters.push(clean);result=clean;break;}
+ case 'submitEvaluation':{me();const p=s.posters.find(p=>p.id===d.posterId);if(!p||!p.judgeIds.includes(u.uid)||!s.accounts.some(a=>a.uid===u.uid&&a.role==='judge'))throw Error('Solo el jurado asignado puede evaluar este póster.');if(s.evaluations.some(e=>e.posterId===p.id&&e.judgeUid===u.uid))throw Error('La evaluación ya fue enviada.');const e={...validateEvaluation(p.rubric,d.scores,d.comments),id:id(),posterId:p.id,judgeUid:u.uid,judgeName:u.name,createdAt:new Date().toISOString()};s.evaluations.push(e);const report=evaluationReport(p,s.evaluations.filter(e=>e.posterId===p.id));if(report.final){p.reportStatus='demo';enqueue('evaluation',report);}result=e;break;}
+ case 'getEvaluationReport':{admin();const p=s.posters.find(p=>p.id===d.posterId);if(!p)throw Error('Póster inexistente.');result=evaluationReport(p,s.evaluations.filter(e=>e.posterId===p.id));break;}
+ case 'mySpeakerConferences':me();result=s.conferences.filter(c=>s.registrations.some(r=>r.id===c.speakerRegistrationId&&r.uid===u.uid&&r.role==='speaker'&&fullyApproved(r))).map(c=>({...c,attendanceCode:s.conferenceSecrets[c.id]}));break;
+ default:return {handled:false};
+ }return {handled:true,result};
+}

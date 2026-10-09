@@ -1,9 +1,11 @@
 # Instalación de EventFlow
 
+El flujo ampliado está descrito en [MEJORAS_ACADEMICAS.md](MEJORAS_ACADEMICAS.md). Incluye requisitos adicionales de cuentas, correo y evaluación.
+
 ## 1. Firebase
 
 1. Crea un proyecto independiente en la consola de Firebase y registra una aplicación web.
-2. Activa Authentication con proveedor **Correo electrónico/contraseña**. En dominios autorizados añade `TU_USUARIO.github.io` y, si probarás localmente, `localhost`.
+2. Activa Authentication con proveedor **Correo electrónico/contraseña** y **Enlace de correo electrónico**. En dominios autorizados añade `TU_USUARIO.github.io` y, si probarás localmente, `localhost`.
 3. Crea Firestore y un bucket predeterminado de Cloud Storage. La implementación usa `getStorage().bucket()`; si tu proyecto tiene varios buckets, configura el predeterminado o adapta esa llamada.
 4. Activa App Check con **reCAPTCHA Enterprise** para los dominios de tu sitio. Copia su clave pública en `web/config.mjs`.
 5. Habilita la facturación que requieren los servicios de servidor y establece alertas de presupuesto. No se presupone que la operación será gratuita.
@@ -13,7 +15,7 @@ El navegador solo contiene la configuración pública de Firebase. El Admin SDK 
 
 ## 2. Drive, Sheets y Apps Script
 
-1. Con la cuenta del organizador, crea dos carpetas privadas de Drive: **Evidencias** y **Certificados**. Copia sus identificadores desde la URL.
+1. Con la cuenta del organizador, crea tres carpetas privadas de Drive: **Evidencias**, **Certificados** y **Evaluaciones de pósteres**. Copia sus identificadores desde la URL.
 2. Crea una hoja de cálculo para el respaldo y copia su identificador.
 3. Crea un proyecto de Apps Script. Copia `apps-script/Code.gs` en un archivo `Code.gs`.
 4. En configuración del proyecto, habilita el manifiesto `appsscript.json` y reemplázalo por el incluido.
@@ -24,10 +26,11 @@ El navegador solo contiene la configuración pública de Firebase. El Admin SDK 
 | `SPREADSHEET_ID` | ID de la hoja |
 | `EVIDENCE_FOLDER_ID` | ID de la carpeta de evidencias |
 | `CERTIFICATE_FOLDER_ID` | ID de la carpeta de certificados |
+| `EVALUATION_FOLDER_ID` | ID de la carpeta de formatos de evaluación de pósteres |
 | `BRIDGE_SECRET` | Secreto aleatorio de 32 caracteres o más, compartido únicamente con Firebase |
 | `CERTIFICATE_TEMPLATE_ID` | Opcional: ID de una presentación de Google Slides que servirá como plantilla |
 
-6. Ejecuta **`verificarInstalacion`** y autoriza Drive, Sheets, Slides y Gmail con la cuenta organizadora. Esta operación comprueba los accesos y crea las hojas necesarias. No envía mensajes.
+6. Ejecuta **`verificarInstalacion`** y autoriza Drive, Sheets, Slides, Documents y Gmail con la cuenta organizadora. Esta operación comprueba los accesos y crea las hojas necesarias. No envía mensajes.
 7. Implementa como **Aplicación web**, ejecutada como la cuenta organizadora, con acceso **Cualquier persona**. El endpoint valida una firma HMAC y una fecha de solicitud; las operaciones no aceptan llamadas sin el secreto. Algunas organizaciones bloquean ese tipo de publicación; en ese caso se necesita otro puente autenticado y no podrá usarse esta instalación tal cual.
 8. Copia la URL que termina en `/exec`. Cada cambio posterior de código requiere una nueva versión de esta implementación.
 
@@ -117,3 +120,5 @@ La cola conserva los trabajos y reintenta errores hasta cinco veces con espera p
 El archivo `OPERACION.md` explica recuperación, copias y datos temporales. Las cuotas de Gmail/Apps Script siguen aplicando; la cola no las elimina.
 
 Referencias oficiales: [GitHub Pages con Actions](https://docs.github.com/en/pages/getting-started/start-your-journey/deploying-your-website-automatically), [funciones callable de Firebase](https://firebase.google.com/docs/functions/callable), [cuotas de Apps Script](https://developers.google.com/apps-script/guides/services/quotas).
+
+Antes de recibir inscripciones sin contraseña, guarde en Configuración la URL HTTPS pública completa de la aplicación. Los enlaces privados y de activación se generan con esa URL; su dominio debe estar autorizado en Firebase.

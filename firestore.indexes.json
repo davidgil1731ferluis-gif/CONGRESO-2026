@@ -1,1 +1,58 @@
-{"indexes":[{"collectionGroup":"jobs","queryScope":"COLLECTION","fields":[{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"nextAttempt","order":"ASCENDING"}]}],"fieldOverrides":[{"collectionGroup":"registrations","fieldPath":"answers","indexes":[]},{"collectionGroup":"jobs","fieldPath":"payload","indexes":[]}]}
+{
+  "indexes": [
+    {
+      "collectionGroup": "jobs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nextAttempt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "posters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "judgeIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "registrations",
+      "fieldPath": "answers",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "jobs",
+      "fieldPath": "payload",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "conferenceSecrets",
+      "fieldPath": "code",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "posters",
+      "fieldPath": "rubric",
+      "indexes": []
+    }
+  ]
+}

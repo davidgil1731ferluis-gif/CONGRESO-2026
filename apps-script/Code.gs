@@ -14,7 +14,12 @@ function doPost(e) {
       const request = JSON.parse(envelope.body);
       let result;
       if (request.action === 'job') result = processJob_(request.payload);
-      else if (request.action === 'download') {
+      else if (request.action === 'downloadEvaluation') {
+        const row = ledger_().getDataRange().getValues().find(function(r) {return r[0] === 'evaluation_' + request.payload.posterId;});
+        const record = row && JSON.parse(row[1]);if (!record || !record.done || record.reportFileId !== request.payload.fileId) throw new Error('Formato no disponible.');
+        const file = DriveApp.getFileById(record.reportFileId), blob = file.getBlob();if (blob.getBytes().length > 5 * 1024 * 1024) throw new Error('Formato demasiado grande.');
+        result = {fileName:file.getName(),base64:Utilities.base64Encode(blob.getBytes())};
+      } else if (request.action === 'download') {
         // Firebase ya verificó que este certificado pertenece al solicitante.
         const ledger = ledger_(), rows = ledger.getDataRange().getValues();
         const row = rows.find(function (r) {return r[0] === 'certificate_' + request.payload.attendanceId;});
@@ -48,12 +53,20 @@ function upsert_(sheet, id, values) {
   SpreadsheetApp.flush();
 }
 function processJob_(p) {
-  if (!p || !/^[a-zA-Z0-9_-]{1,150}$/.test(p.jobId) || !['registration','status','certificate'].includes(p.kind)) throw new Error('Proceso inválido.');
+  if (!p || !/^[a-zA-Z0-9_-]{1,150}$/.test(p.jobId) || !['registration','status','certificate','access','judgeInvitation','evaluation'].includes(p.kind)) throw new Error('Proceso inválido.');
   const ledger = ledger_(), row = ledger.getDataRange().getValues().find(function(r) {return r[0] === p.jobId;});
   let record = row ? JSON.parse(row[1]) : {mailState: 'pending'};
   const save = function() {upsert_(ledger, p.jobId, [p.jobId, JSON.stringify(record), new Date().toISOString()]);};
   if (record.done) return record;
   const props = properties_(), settings = p.settings || {};
+  if (p.kind === 'evaluation') {
+    if (!p.final || !p.evaluations || p.evaluations.length !== p.expected) throw new Error('El formato requiere todas las evaluaciones.');
+    if (!props.EVALUATION_FOLDER_ID) throw new Error('Configure EVALUATION_FOLDER_ID para los formatos de evaluación.');
+    if (!record.reportFileId) {record.reportFileId = evaluationDocument_(p,props);save();}
+    const sheet = sheet_('Evaluaciones',['ID','Póster ID','Evento ID','Título','Categoría','Jurado UID','Jurado','Criterio','Ponderación','Calificación','Total jurado','Observaciones','Fecha','Formato Drive ID']);
+    p.evaluations.forEach(function(e) {p.rubric.criteria.forEach(function(q) {const id = p.posterId + '_' + e.judgeUid + '_' + q.id;upsert_(sheet,id,[id,p.posterId,p.eventId,p.title,p.category,e.judgeUid,e.judgeName,q.label,q.weight,e.scores[q.id],e.total,e.comments,e.createdAt,record.reportFileId]);});});
+    record.done = true;record.mailState = 'not_required';save();return record;
+  }
   // La copia de Firestore se guarda antes de enviar el correo.
   if (p.kind === 'registration' || p.kind === 'status') {
     const sheet = sheet_('Inscripciones', ['ID', 'Evento ID', 'Evento', 'Nombre', 'Correo', 'Inscripción', 'Pago', 'Fecha de registro', 'Versión', 'Respuestas JSON', 'Última copia', 'Referencia pago']);
@@ -83,8 +96,7 @@ function processJob_(p) {
   if (record.mailState !== 'sent') {
     if (MailApp.getRemainingDailyQuota() < (settings.ccEmail && p.kind === 'registration' ? 2 : 1)) throw new Error('Cuota de correos agotada. Se reintentará.');
     const states = {pending:'en espera',approved:'aprobado',rejected:'no aprobado'};
-    const subject = p.kind === 'registration' ? 'Inscripción recibida · ' + p.eventTitle : p.kind === 'certificate' ? 'Tu certificado de asistencia · ' + p.conferenceTitle : 'Actualización de inscripción · ' + p.eventTitle;
-    const body = 'Hola ' + p.name + ',\n\n' + (p.kind === 'registration' ? 'Recibimos tu inscripción a ' + p.eventTitle + '. Tu estado es en espera. Consulta las siguientes fases en la plataforma.' : p.kind === 'certificate' ? 'Tu asistencia a ' + p.conferenceTitle + ' quedó registrada. Adjuntamos tu certificado.' : 'El estado de tu inscripción es ' + (states[p.status] || p.status) + ' y el estado del pago es ' + (states[p.payment] || p.payment) + '.') + '\n\nReferencia: ' + p.registrationId + '\n' + (settings.organizer || 'Equipo organizador');
+    const mail = academicMail_(p,settings), subject = mail.subject, body = mail.body;
     const options = {name: settings.organizer || 'EventFlow'};
     if (p.kind === 'registration' && settings.ccEmail) options.cc = settings.ccEmail;
     if (p.kind === 'certificate') options.attachments = [DriveApp.getFileById(record.certificateFileId).getBlob()];
@@ -128,7 +140,7 @@ function certificate_(p, props) {
 }
 function verificarInstalacion() {
   const p = properties_();if (!p.BRIDGE_SECRET || p.BRIDGE_SECRET.length < 32) throw new Error('Configura BRIDGE_SECRET de al menos 32 caracteres.');
-  SpreadsheetApp.openById(p.SPREADSHEET_ID);DriveApp.getFolderById(p.EVIDENCE_FOLDER_ID);DriveApp.getFolderById(p.CERTIFICATE_FOLDER_ID);
+  SpreadsheetApp.openById(p.SPREADSHEET_ID);DriveApp.getFolderById(p.EVIDENCE_FOLDER_ID);DriveApp.getFolderById(p.CERTIFICATE_FOLDER_ID);if(!p.EVALUATION_FOLDER_ID)throw new Error('Configure EVALUATION_FOLDER_ID.');DriveApp.getFolderById(p.EVALUATION_FOLDER_ID);
   ledger_();sheet_('Inscripciones',['ID','Evento ID','Evento','Nombre','Correo','Inscripción','Pago','Fecha de registro','Versión','Respuestas JSON','Última copia','Referencia pago']);
   console.log('Drive y Sheets accesibles. Cuota restante de destinatarios: ' + MailApp.getRemainingDailyQuota());
 }
@@ -151,4 +163,37 @@ function resolverEnvioRevisado() {
     props.deleteProperty('REVIEW_JOB_ID');props.deleteProperty('REVIEW_SENT_MESSAGE_ID');props.deleteProperty('REVIEW_CONFIRMED_NOT_SENT');
     console.log('Revisión registrada. Reanuda exclusivamente este trabajo en Firebase siguiendo OPERACION.md.');
   } finally {lock.releaseLock();}
+}
+
+/** Textos académicos y pasos de cada etapa; las credenciales no se envían por correo. */
+function academicMail_(p,s) {
+  let subject,content;
+  if (p.kind === 'registration') {subject='Inscripción recibida · '+p.eventTitle;content='Su inscripción ha sido recibida correctamente.\n\n1. Consulte su propuesta mediante el enlace privado que aparece a continuación.\n2. Espere la revisión del comité organizador. Le informaremos por correo si puede avanzar al pago.\n3. Una vez aprobado el pago, recibirá las instrucciones para crear únicamente su contraseña; conservaremos sus datos de inscripción.';}
+  else if (p.kind === 'certificate') {subject='Certificado de asistencia · '+p.conferenceTitle;content='Su asistencia a '+p.conferenceTitle+' ha quedado registrada. Adjuntamos su certificado de participación. Gracias por contribuir a este encuentro académico.';}
+  else if (p.kind === 'judgeInvitation') {subject='Invitación como jurado · Encuentro académico';content='El comité organizador le ha asignado el rol de jurado.\n\n1. Cree su contraseña utilizando el enlace de activación.\n2. Ingrese a su espacio de evaluación.\n3. Consulte los pósteres asignados y complete la rúbrica de cada uno.\n4. Revise sus calificaciones antes de enviarlas. El formato consolidado se generará al recibir todas las evaluaciones.';}
+  else if (p.kind === 'access') {subject='Enlace privado de acceso · Encuentro académico';content='Use el siguiente enlace para consultar el estado de su propuesta. Confirme el correo al que enviamos este mensaje. Este enlace es personal y tiene una vigencia limitada.';}
+  else if (p.status === 'approved' && p.payment === 'approved') {subject='Pago aprobado · Active su cuenta';content='Su propuesta y su pago han sido aprobados.\n\n1. Abra el enlace de activación y cree su contraseña. No necesita registrar de nuevo sus datos.\n2. Ingrese a su espacio académico para consultar su credencial.\n3. Si es ponente, encontrará las claves de sus conferencias al girar su credencial.\n4. Para registrar su asistencia a otras conferencias, presente la imagen y la clave dentro del horario indicado.';}
+  else if (p.status === 'approved') {subject='Propuesta aprobada · Siguiente etapa';content='Felicitaciones. Su propuesta ha superado el primer filtro del comité organizador.\n\n1. Consulte el estado en la plataforma.\n2. Continúe con el módulo de pagos.\n3. Espere la validación del equipo organizador.\n4. Tras aprobar el pago, le enviaremos el enlace para crear su contraseña.'+(s.paymentUrl?'\n\nMódulo de pagos: '+s.paymentUrl:'');if(p.payment==='rejected')content+='\n\nEl pago presentado no fue aprobado. Contacte al comité para conocer el motivo y las instrucciones de subsanación.';}
+  else if (p.status === 'rejected') {subject='Resultado de revisión · '+p.eventTitle;content='El comité organizador ha finalizado la revisión y su propuesta no fue aprobada. Agradecemos su interés en este encuentro académico. Puede comunicarse con el comité para solicitar información adicional.';}
+  else {subject='Propuesta en revisión · '+p.eventTitle;content='Su propuesta se encuentra en revisión. Le comunicaremos por correo el resultado y las instrucciones para la siguiente etapa.';}
+  if(p.trackingUrl)content+='\n\nConsultar mi propuesta: '+p.trackingUrl;
+  else if(s.appUrl&&!p.activationUrl)content+='\n\nPlataforma: '+s.appUrl+'\nSi aún no tiene contraseña, seleccione Consultar mi propuesta para recibir un enlace privado.';
+  if(p.activationUrl)content+='\n\nCrear mi contraseña: '+p.activationUrl+'\nEl enlace es personal y tiene vigencia limitada. Si caduca, use Consultar mi propuesta para acceder y crear su contraseña desde su espacio.';
+  return {subject:subject,body:'Estimado/a '+p.name+',\n\n'+content+'\n\n'+(p.registrationId?'Referencia de inscripción: '+p.registrationId+'\n':'')+(s.organizer||'Comité organizador')};
+}
+function evaluationDocument_(p,props) {
+  const folder=DriveApp.getFolderById(props.EVALUATION_FOLDER_ID), filename='Evaluacion_'+p.posterId+'.pdf', files=folder.getFilesByName(filename);
+  if(files.hasNext())return files.next().getId();
+  const doc=DocumentApp.create('Temporal_evaluacion_'+p.posterId), source=DriveApp.getFileById(doc.getId()), body=doc.getBody();
+  body.appendParagraph('FORMATO DE EVALUACIÓN ACADÉMICA').setHeading(DocumentApp.ParagraphHeading.HEADING1);
+  body.appendParagraph(p.title).setHeading(DocumentApp.ParagraphHeading.HEADING2);
+  body.appendParagraph('Autor: '+p.author+'\nCategoría: '+p.category+'\nReferencia: '+p.posterId);
+  body.appendParagraph('Consolidado final · '+p.completed+' de '+p.expected+' jurados · Promedio: '+p.average+' / 100');
+  p.evaluations.forEach(function(e) {
+    body.appendParagraph('Jurado: '+e.judgeName).setHeading(DocumentApp.ParagraphHeading.HEADING2);
+    const rows=[['Criterio','Ponderación','Calificación']];p.rubric.criteria.forEach(function(q){rows.push([q.label,String(q.weight)+' %',String(e.scores[q.id])+' / 5']);});body.appendTable(rows);
+    body.appendParagraph('Puntaje ponderado: '+e.total+' / 100\nObservaciones: '+(e.comments||'Sin observaciones.')+'\nRegistro UTC: '+e.createdAt);
+  });
+  body.appendParagraph('El presente formato conserva las evaluaciones y la rúbrica asignada al póster.');doc.saveAndClose();
+  const file=folder.createFile(source.getAs(MimeType.PDF).setName(filename));source.setTrashed(true);return file.getId();
 }

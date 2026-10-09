@@ -1,3 +1,5 @@
+import {academicDemo,migrateAcademic} from './academic-demo.mjs';
+import {participation,checkCode} from './academic-domain.mjs';
 import {config} from './config.mjs';
 import {validateSchema,validateAnswers,attendanceGate,validateImage} from './domain.mjs?v=vivid-1';
 const key='eventflow-demo-v1';
@@ -18,7 +20,7 @@ const seed=()=>{
 };
 function persist(){localStorage.setItem(key,JSON.stringify(state));}
 export async function init(){
- if(demo){try{state=JSON.parse(localStorage.getItem(key))||seed()}catch{state=seed()}persist();user={uid:'demo-admin',name:'Administrador demo',email:'admin@example.com',admin:true};return user;}
+ if(demo){try{state=JSON.parse(localStorage.getItem(key))||seed()}catch{state=seed()}migrateAcademic(state);persist();user={uid:'demo-admin',name:'Administrador demo',email:'admin@example.com',admin:true};return user;}
  if(config.mode!=='firebase')throw new Error('Modo de configuración inválido.');
  if(!config.firebase.projectId||!config.firebase.apiKey||!config.appCheckSiteKey)throw new Error('Completa Firebase y App Check en config.mjs antes de activar el modo real.');
  const base='https://www.gstatic.com/firebasejs/12.4.0/';
@@ -31,13 +33,17 @@ export async function init(){
  await new Promise(resolve=>{const unsub=authSDK.onAuthStateChanged(auth,u=>{user=u;unsub();resolve()})});
  return await currentUser();
 }
-export async function currentUser(){if(demo)return user;if(!live.auth.currentUser)return null;const u=live.auth.currentUser,t=await u.getIdTokenResult();return {uid:u.uid,email:u.email,name:u.displayName||u.email,admin:t.claims.admin===true};}
+export async function currentUser(){if(demo)return user;if(!live.auth.currentUser)return null;await live.auth.currentUser.reload();const u=live.auth.currentUser,t=await u.getIdTokenResult();return {uid:u.uid,email:u.email,name:u.displayName||u.email,admin:t.claims.admin===true,verified:u.emailVerified};}
 export async function login(email,password,signup=false,name=''){
- if(demo){user=email==='admin@example.com'?{uid:'demo-admin',email,name:'Administrador demo',admin:true}:{uid:'demo-participant',email,name:name||'Andrea Martínez',admin:false};return user;}
+ if(demo){email=email.trim().toLowerCase();let a=state.accounts.find(a=>a.email===email);if(!a&&email!=='admin@example.com'){a={uid:id(),email,name:name||'Participante demo',role:'attendee',activated:signup};state.accounts.push(a);persist();}user=email==='admin@example.com'?{uid:'demo-admin',email,name:'Administrador demo',admin:true,role:'admin'}:{...a,admin:false};return user;}
  const result=await live.authSDK[signup?'createUserWithEmailAndPassword':'signInWithEmailAndPassword'](live.auth,email,password);
  if(signup){await live.authSDK.updateProfile(result.user,{displayName:name});await live.authSDK.sendEmailVerification(result.user);}
  return currentUser();
 }
+export async function completeEmailAccess(email,url=location.href){if(demo)return login(email,'demo');await live.authSDK.signInWithEmailLink(live.auth,email,url);return currentUser();}
+export function isEmailAccess(){return !demo&&live.authSDK.isSignInWithEmailLink(live.auth,location.href);}
+export async function completeActivation(code,password){const email=await live.authSDK.verifyPasswordResetCode(live.auth,code);await live.authSDK.confirmPasswordReset(live.auth,code,password);await live.authSDK.signInWithEmailAndPassword(live.auth,email,password);await call('activateAccount');return currentUser();}
+export async function setAccountPassword(password){if(demo){await call('activateAccount',{password});return currentUser();}const p=await call('myProfile'),rs=await call('myRegistrations');if(p.role!=='judge'&&!rs.some(r=>r.status==='approved'&&r.payment==='approved'))throw Error('Espere la aprobación del pago para activar su cuenta.');await live.authSDK.updatePassword(live.auth.currentUser,password);await call('activateAccount');return currentUser();}
 export async function resetPassword(email){if(demo)return;await live.authSDK.sendPasswordResetEmail(live.auth,email);}
 export async function logout(){if(demo){user=null;return}await live.authSDK.signOut(live.auth);}
 export function resetDemo(){localStorage.removeItem(key);location.reload();}
@@ -54,6 +60,8 @@ export async function call(action,data={}){
  const event=state.events.find(e=>e.id===data.eventId);
  const registration=state.registrations.find(r=>r.id===data.registrationId);
  const enqueue=(kind,payload)=>{const job={id:id(),kind,status:'demo',payload,createdAt:new Date().toISOString()};state.jobs.unshift(job);};
+ if(action==='registerGuest'){const e=state.events.find(e=>e.id===data.eventId);if(!e?.published)throw Error('Formulario no disponible.');data={...data,answers:validateAnswers(e.publishedQuestions||e.questions,data.answers)};}
+ const extra=academicDemo(action,data,{state,user,id,enqueue});if(extra.handled){persist();return clone(extra.result);}
  let result;
  switch(action){
  case 'listEvents':result=state.events;break;
@@ -70,7 +78,7 @@ export async function call(action,data={}){
    const previous=state.registrations.find(r=>r.uid===user.uid&&r.eventId===event.id);
    if(previous){result=previous;break;}
    const answers=validateAnswers(event.publishedQuestions||event.questions,data.answers);
-   const r={id:id(),uid:user.uid,eventId:event.id,name:user.name,email:user.email,answers,status:'pending',payment:'pending',version:event.version,createdAt:new Date().toISOString()};state.registrations.push(r);enqueue('registration',r);result=r;break;
+   const r={id:id(),uid:user.uid,eventId:event.id,name:user.name,email:user.email,identification:data.profile?.identification||user.identification||user.uid,role:participation(data.profile?.role),answers,status:'pending',payment:'pending',version:event.version,createdAt:new Date().toISOString()};state.registrations.push(r);const a=state.accounts.find(a=>a.uid===user.uid);if(a){if(a.role!=='judge')a.role=r.role;a.identification=r.identification;}enqueue('registration',{...r,registrationId:r.id,eventTitle:event.title});result=r;break;
  }
  case 'listRegistrations':result=state.registrations.filter(r=>!data.eventId||r.eventId===data.eventId);break;
  case 'myRegistrations':if(!user)throw new Error('Inicia sesión.');result=state.registrations.filter(r=>r.uid===user.uid);break;
@@ -78,18 +86,18 @@ export async function call(action,data={}){
    if(!registration)throw new Error('Inscripción inexistente.');
    if(data.status){if(!['pending','approved','rejected'].includes(data.status))throw new Error('Estado inválido.');registration.status=data.status;}
    if(data.payment){if(registration.status!=='approved')throw new Error('Primero aprueba la inscripción.');if(!['pending','approved','rejected'].includes(data.payment))throw new Error('Pago inválido.');registration.payment=data.payment;}
-   enqueue('status',registration);result=registration;break;
+   if(data.role){registration.role=participation(data.role);const a=state.accounts.find(a=>a.uid===registration.uid);if(a&&a.role!=='judge')a.role=registration.role;}enqueue('status',{...registration,registrationId:registration.id,eventTitle:event?.title||'Evento'});result=registration;break;
  }
- case 'listConferences':result=state.conferences.filter(c=>c.eventId===data.eventId);break;
+ case 'listConferences':if(!user)throw Error('Inicie sesión.');result=state.conferences.filter(c=>c.eventId===data.eventId).map(c=>user.admin?{...c,attendanceCode:state.conferenceSecrets[c.id]}:c);break;
  case 'saveConference':{
    const c=data.conference;if(!c.title?.trim()||Date.parse(c.closesAt)<=Date.parse(c.opensAt)||!Number.isFinite(Date.parse(c.opensAt))||!Number.isFinite(Date.parse(c.closesAt)))throw new Error('Revisa título y fechas de apertura y cierre.');
-   const existing=state.conferences.find(x=>x.id===c.id);if(existing)Object.assign(existing,c);else state.conferences.push({...c,id:id()});result=c;break;
+   if(c.speakerRegistrationId&&!state.registrations.some(r=>r.id===c.speakerRegistrationId&&r.eventId===c.eventId&&r.role==='speaker'&&r.status==='approved'&&r.payment==='approved'))throw Error('Seleccione un ponente con aprobación total.');const existing=state.conferences.find(x=>x.id===c.id);const clean={...c,id:existing?.id||id()};if(existing)Object.assign(existing,clean);else state.conferences.push(clean);state.conferenceSecrets[clean.id]||=crypto.randomUUID().replaceAll('-','').slice(0,12).toUpperCase();result={...clean,attendanceCode:state.conferenceSecrets[clean.id]};break;
  }
  case 'myAttendance':result=state.attendance.filter(a=>a.uid===user?.uid);break;
  case 'listAttendance':result=state.attendance.filter(a=>!data.eventId||a.eventId===data.eventId);break;
  case 'stamp':{
    if(!registration||registration.uid!==user?.uid)throw new Error('Inscripción inválida.');
-   const c=state.conferences.find(c=>c.id===data.conferenceId&&c.eventId===registration.eventId);if(!c)throw new Error('Conferencia inexistente.');attendanceGate(registration,c);validateImage(data.base64,data.mime);
+   const c=state.conferences.find(c=>c.id===data.conferenceId&&c.eventId===registration.eventId);if(!c)throw new Error('Conferencia inexistente.');attendanceGate(registration,c);checkCode(state.conferenceSecrets[c.id],data.code);validateImage(data.base64,data.mime);
    const previous=state.attendance.find(a=>a.registrationId===registration.id&&a.conferenceId===c.id);if(previous){result=previous;break;}
    const a={id:id(),uid:user.uid,registrationId:registration.id,conferenceId:c.id,eventId:c.eventId,stampedAt:new Date().toISOString(),certificateStatus:'demo',fileName:data.fileName};state.attendance.push(a);enqueue('certificate',{...registration,...a,conferenceTitle:c.title});result=a;break;
  }
