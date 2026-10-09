@@ -37,7 +37,15 @@ export function validateSchema(form) {
       steps.add(s.step);
     }
   }
-  if (form.appearance !== undefined && (!form.appearance || !["studio","warm","midnight"].includes(form.appearance.theme) || !["cards","minimal"].includes(form.appearance.layout) || !["orbital","ribbon","none"].includes(form.appearance.cover))) throw new Error("Estilo de formulario inválido.");
+  if (form.appearance !== undefined && (!form.appearance || !["studio","warm","midnight"].includes(form.appearance.theme) || !["cards","minimal"].includes(form.appearance.layout) || !["orbital","ribbon","none","image"].includes(form.appearance.cover))) throw new Error("Estilo de formulario inválido.");
+  if (form.appearance?.image) {
+    const image=form.appearance.image;
+    if(typeof image!=='string'||image.length>240000||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(image))throw new Error('Imagen de portada inválida o demasiado grande.');
+    const [,type,data]=image.match(/^data:image\/(jpeg|png|webp);base64,(.+)$/);validateImage(data,'image/'+type);
+  }
+  if(form.appearance?.cover==='image'&&!form.appearance.image)throw new Error('Seleccione una imagen para la portada personalizada.');
+  if(form.appearance?.caption!==undefined&&(typeof form.appearance.caption!=='string'||form.appearance.caption.length>80))throw new Error('El texto de portada admite hasta 80 caracteres.');
+  if(new TextEncoder().encode(JSON.stringify(form)).length>850000)throw new Error('El formulario es demasiado grande. Reduzca sus opciones o la imagen de portada.');
   return form;
 }
 export function validateAnswers(questions, answers) {

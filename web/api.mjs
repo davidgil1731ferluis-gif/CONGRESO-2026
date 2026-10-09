@@ -1,5 +1,5 @@
 import {config} from './config.mjs';
-import {validateSchema,validateAnswers,attendanceGate,validateImage} from './domain.mjs?v=community-1';
+import {validateSchema,validateAnswers,attendanceGate,validateImage} from './domain.mjs?v=vivid-1';
 const key='eventflow-demo-v1';
 const clone=v=>structuredClone(v);
 const id=()=>crypto.randomUUID();
