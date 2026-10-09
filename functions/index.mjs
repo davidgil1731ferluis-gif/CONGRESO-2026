@@ -18,7 +18,7 @@ const admin=r=>{auth(r);if(r.auth.token.admin!==true)throw new HttpsError('permi
 const text=(v,max=300)=>{if(typeof v!=='string'||v.length>max)throw new Error('Texto inválido o demasiado largo.');return v.trim()};
 const owner=(r,uid)=>{if(r.uid!==uid)throw new HttpsError('permission-denied','No puedes consultar este registro.');};
 const job=(tx,id,kind,payload)=>tx.create(db.collection('jobs').doc(id),{kind,payload,eventId:payload.eventId,status:'queued',attempts:0,nextAttempt:0,createdAt:stamp()});
-const publicEvent=e=>({title:e.title,description:e.description,location:e.location,date:e.date,questions:e.questions,version:e.version,published:true});
+const publicEvent=e=>({title:e.title,description:e.description,location:e.location,date:e.date,questions:e.questions,sections:e.sections||[],appearance:e.appearance||{theme:'studio',layout:'cards',cover:'orbital'},version:e.version,published:true});
 async function page(collection,d,field,value){let q=db.collection(collection);if(field)q=q.where(field,'==',value);q=q.orderBy(FieldPath.documentId()).limit(250);if(d.cursor)q=q.startAfter(d.cursor);const s=await q.get();return {items:s.docs.map(dataOf),nextCursor:s.size===250?s.docs.at(-1).id:null};}
 async function rateLimit(uid){const r=db.collection('limits').doc(hash(uid));await db.runTransaction(async tx=>{const s=await tx.get(r),now=Date.now(),old=s.data();if(old&&old.until>now&&old.count>=120)throw new HttpsError('resource-exhausted','Demasiadas solicitudes. Espera un minuto.');tx.set(r,{count:old?.until>now?old.count+1:1,until:old?.until>now?old.until:now+60000})});}
 async function bridge(action,payload){const body=JSON.stringify({action,payload}),ts=Date.now(),nonce=randomUUID(),signature=createHmac('sha256',bridgeSecret.value()).update(`${ts}.${nonce}.${body}`).digest('hex');
@@ -35,7 +35,7 @@ export const api=onCall({enforceAppCheck:true,secrets:[bridgeUrl,bridgeSecret],t
  case 'listEvents':return page('events',d);
  case 'saveEvent':{
    const e=d.event;validateSchema(e);const er=e.id?ref('events',e.id):db.collection('events').doc();
-   await db.runTransaction(async tx=>{const old=await tx.get(er);tx.set(er,{title:text(e.title,160),description:text(e.description,3000),location:text(e.location||'',300),date:text(e.date||'',20),questions:e.questions,version:old.data()?.version||0,published:old.data()?.published||false,updatedAt:stamp()});});return dataOf(await er.get());
+   await db.runTransaction(async tx=>{const old=await tx.get(er);tx.set(er,{title:text(e.title,160),description:text(e.description,3000),location:text(e.location||'',300),date:text(e.date||'',20),questions:e.questions,sections:e.sections||[],appearance:e.appearance||{theme:'studio',layout:'cards',cover:'orbital'},version:old.data()?.version||0,published:old.data()?.published||false,updatedAt:stamp()});});return dataOf(await er.get());
  }
  case 'publishEvent':{
    const er=ref('events',d.eventId);await db.runTransaction(async tx=>{const e=dataOf(await tx.get(er));validateSchema(e);e.version++;tx.update(er,{published:true,version:e.version});tx.set(ref('publicEvents',er.id),publicEvent(e));tx.set(er.collection('versions').doc(String(e.version)),{...publicEvent(e),publishedAt:stamp()});});return dataOf(await er.get());

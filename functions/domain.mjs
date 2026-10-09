@@ -29,6 +29,15 @@ export function validateSchema(form) {
     }
     ids.add(q.id);
   }
+  if (form.sections !== undefined) {
+    if (!Array.isArray(form.sections) || form.sections.length>10) throw new Error("Revisa las secciones del formulario.");
+    const steps=new Set();
+    for (const s of form.sections) {
+      if (!Number.isInteger(s.step)||s.step<1||s.step>10||steps.has(s.step)||typeof s.title!=="string"||!s.title.trim()||s.title.length>120||typeof s.description!=="string"||s.description.length>600) throw new Error("Título o descripción de sección inválidos.");
+      steps.add(s.step);
+    }
+  }
+  if (form.appearance !== undefined && (!form.appearance || !["studio","warm","midnight"].includes(form.appearance.theme) || !["cards","minimal"].includes(form.appearance.layout) || !["orbital","ribbon","none"].includes(form.appearance.cover))) throw new Error("Estilo de formulario inválido.");
   return form;
 }
 export function validateAnswers(questions, answers) {

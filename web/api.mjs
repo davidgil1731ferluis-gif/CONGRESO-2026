@@ -1,5 +1,5 @@
 import {config} from './config.mjs';
-import {validateSchema,validateAnswers,attendanceGate,validateImage} from './domain.mjs';
+import {validateSchema,validateAnswers,attendanceGate,validateImage} from './domain.mjs?v=community-1';
 const key='eventflow-demo-v1';
 const clone=v=>structuredClone(v);
 const id=()=>crypto.randomUUID();
@@ -61,10 +61,10 @@ export async function call(action,data={}){
  case 'saveEvent':{
    validateSchema(data.event);const clean=clone(data.event);
    const existing=state.events.find(e=>e.id===clean.id);
-   if(existing){Object.assign(existing,{...clean,published:existing.published,publishedQuestions:existing.publishedQuestions||clone(existing.questions),version:existing.version})}else{state.events.push({...clean,id:id(),published:false,version:0})}
+   if(existing){const snapshot=existing.publicSnapshot||{title:existing.title,description:existing.description,location:existing.location,date:existing.date,sections:clone(existing.sections||[]),appearance:clone(existing.appearance||{theme:'studio',layout:'cards',cover:'orbital'})};Object.assign(existing,{...clean,publicSnapshot:snapshot,published:existing.published,publishedQuestions:existing.publishedQuestions||clone(existing.questions),version:existing.version})}else{state.events.push({...clean,id:id(),published:false,version:0})}
    result=existing||state.events.at(-1);break;
  }
- case 'publishEvent':if(!event)throw new Error('Evento inexistente.');validateSchema(event);event.published=true;event.version++;event.publishedQuestions=clone(event.questions);event.publicSnapshot={title:event.title,description:event.description,location:event.location,date:event.date};result=event;break;
+ case 'publishEvent':if(!event)throw new Error('Evento inexistente.');validateSchema(event);event.published=true;event.version++;event.publishedQuestions=clone(event.questions);event.publicSnapshot={title:event.title,description:event.description,location:event.location,date:event.date,sections:clone(event.sections||[]),appearance:clone(event.appearance||{theme:'studio',layout:'cards',cover:'orbital'})};result=event;break;
  case 'register':{
    if(!user)throw new Error('Inicia sesión para inscribirte.');if(!event?.published)throw new Error('Formulario no disponible.');
    const previous=state.registrations.find(r=>r.uid===user.uid&&r.eventId===event.id);
