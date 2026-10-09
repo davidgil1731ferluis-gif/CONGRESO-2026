@@ -96,6 +96,7 @@ export const processJobs=onSchedule({schedule:'every 1 minutes',secrets:[bridgeU
  await db.runTransaction(async tx=>{j=undefined;const fresh=await tx.get(s.ref),v=fresh.data();if(!v||!['queued','processing'].includes(v.status)||v.nextAttempt>Date.now()||v.status==='processing'&&v.leaseUntil>Date.now())return;j={id:fresh.id,...v};tx.update(s.ref,{status:'processing',leaseUntil:Date.now()+12*60000,token,attempts:v.attempts+1});});
  if(!j)continue;
  try{
+   if(j.kind==='status'){const current=(await ref('registrations',j.payload.registrationId).get()).data();if(current?.updatedAt&&j.payload.updatedAt&&Date.parse(current.updatedAt)>Date.parse(j.payload.updatedAt)){await s.ref.update({status:'done',completedAt:stamp(),skipped:'Superado por una actualización posterior.'});continue;}}
    const settings=(await db.doc('settings/main').get()).data()||{};let image;
    if(j.kind==='certificate'){const [buffer]=await getStorage().bucket().file(j.payload.uploadPath).download();image=buffer.toString('base64');}
    const result=await bridge('job',{jobId:j.id,kind:j.kind,...j.payload,settings,base64:image});
