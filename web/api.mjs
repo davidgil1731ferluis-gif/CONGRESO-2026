@@ -78,7 +78,7 @@ export async function call(action,data={}){
    const previous=state.registrations.find(r=>r.uid===user.uid&&r.eventId===event.id);
    if(previous){result=previous;break;}
    const answers=validateAnswers(event.publishedQuestions||event.questions,data.answers);
-   const r={id:id(),uid:user.uid,eventId:event.id,name:user.name,email:user.email,identification:data.profile?.identification||user.identification||user.uid,role:participation(data.profile?.role),answers,status:'pending',payment:'pending',version:event.version,createdAt:new Date().toISOString()};state.registrations.push(r);const a=state.accounts.find(a=>a.uid===user.uid);if(a){if(a.role!=='judge')a.role=r.role;a.identification=r.identification;}enqueue('registration',{...r,registrationId:r.id,eventTitle:event.title});result=r;break;
+   const r={id:id(),uid:user.uid,eventId:event.id,name:data.profile?.name?.trim()||user.name,email:user.email,identification:data.profile?.identification||user.identification||user.uid,role:participation(data.profile?.role),answers,status:'pending',payment:'pending',version:event.version,createdAt:new Date().toISOString()};state.registrations.push(r);const a=state.accounts.find(a=>a.uid===user.uid);if(a){if(a.role!=='judge')a.role=r.role;a.identification=r.identification;}enqueue('registration',{...r,registrationId:r.id,eventTitle:event.title});result=r;break;
  }
  case 'listRegistrations':result=state.registrations.filter(r=>!data.eventId||r.eventId===data.eventId);break;
  case 'myRegistrations':if(!user)throw new Error('Inicia sesión.');result=state.registrations.filter(r=>r.uid===user.uid);break;

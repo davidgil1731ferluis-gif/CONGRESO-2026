@@ -1,5 +1,5 @@
 import {academicAction,academicAdminActions} from './academic.mjs';
-import {participation,fullyApproved} from './academic-domain.mjs';
+import {identity,participation,fullyApproved} from './academic-domain.mjs';
 import {initializeApp} from 'firebase-admin/app';
 import {getAuth} from 'firebase-admin/auth';
 import {getFirestore,FieldValue,FieldPath} from 'firebase-admin/firestore';
@@ -47,8 +47,8 @@ export const api=onCall({enforceAppCheck:true,secrets:[bridgeUrl,bridgeSecret],t
  case 'register':{
    const uid=auth(request);if(d.consent!==true)throw new Error('Debes autorizar el tratamiento de datos.');
    const u=await getAuth().getUser(uid);if(!u.email||!u.emailVerified)throw new Error('Verifica tu correo antes de enviar la inscripción. Después vuelve a iniciar sesión.');
-   const rr=ref('registrations',hash(`${uid}_${d.eventId}`));
-   await db.runTransaction(async tx=>{const [es,previous]=await Promise.all([tx.get(ref('publicEvents',d.eventId)),tx.get(rr)]);if(previous.exists)return;const event=dataOf(es),answers=validateAnswers(event.questions,d.answers),ar=ref('accounts',uid),account=await tx.get(ar);const r={uid,eventId:d.eventId,name:text(u.displayName||u.email,160),email:u.email,identification:text(d.profile?.identification||uid,80),role:participation(d.profile?.role),answers,status:'pending',payment:'pending',version:event.version,consentAt:stamp(),createdAt:stamp()};tx.create(rr,r);if(!account.exists)tx.create(ar,{uid,email:r.email,name:r.name,identification:r.identification,role:r.role,activated:!!u.passwordHash,createdAt:stamp()});job(tx,`registration_${rr.id}`,'registration',{...r,registrationId:rr.id,eventTitle:event.title});});return dataOf(await rr.get());
+   const profile=d.profile?identity({...d.profile,email:u.email}):{name:u.displayName||u.email,email:u.email,identification:uid,role:'attendee'};const rr=ref('registrations',hash(`${uid}_${d.eventId}`));
+   await db.runTransaction(async tx=>{const [es,previous]=await Promise.all([tx.get(ref('publicEvents',d.eventId)),tx.get(rr)]);if(previous.exists)return;const event=dataOf(es),answers=validateAnswers(event.questions,d.answers),ar=ref('accounts',uid),account=await tx.get(ar);const r={uid,eventId:d.eventId,name:profile.name,email:u.email,identification:profile.identification,role:profile.role,answers,status:'pending',payment:'pending',version:event.version,consentAt:stamp(),createdAt:stamp()};tx.create(rr,r);if(!account.exists)tx.create(ar,{uid,email:r.email,name:r.name,identification:r.identification,role:r.role,activated:!!u.passwordHash,createdAt:stamp()});job(tx,`registration_${rr.id}`,'registration',{...r,registrationId:rr.id,eventTitle:event.title});});return dataOf(await rr.get());
  }
  case 'listRegistrations':return page('registrations',d,d.eventId?'eventId':null,d.eventId);
  case 'myRegistrations':return page('registrations',d,'uid',auth(request));

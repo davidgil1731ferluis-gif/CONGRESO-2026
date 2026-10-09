@@ -11,6 +11,10 @@ Se ejecutaron 38 pruebas automatizadas, todas aprobadas, con Node.js. Se comprob
 
 Ejecutar: `node --test tests/*.test.mjs`.
 
+## Revisión de interfaz
+
+La versión publicada se comprobó mediante interacción de navegador con datos ficticios aislados de la demo habitual: creación de categorías y criterios, invitación de jurado, inscripción pública sin contraseña, seguimiento, aprobación y pago simulado, asignación de póster, evaluación, consolidado y credencial del ponente con reverso y clave. La credencial móvil no presentó desbordamiento horizontal.
+
 ## Límites de la validación
 
 El frontend publicado opera en demostración. No se proporcionaron Firebase, Gmail, Drive, Sheets ni el módulo de pagos real. La instalación del servidor, los índices, App Check, el envío de mensajes, las firmas del proveedor de pago, la evaluación concurrente en Firestore y la generación visual de PDF en Google deben verificarse con cuentas de prueba después de conectar esos servicios. Los simuladores no certifican disponibilidad, permisos ni cuotas reales.

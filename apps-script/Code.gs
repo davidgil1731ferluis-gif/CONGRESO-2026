@@ -43,6 +43,7 @@ function sheet_(name, headers) {
   const book = SpreadsheetApp.openById(properties_().SPREADSHEET_ID);
   let sheet = book.getSheetByName(name);
   if (!sheet) {sheet = book.insertSheet(name);sheet.appendRow(headers);sheet.setFrozenRows(1);sheet.getRange(1,1,1,headers.length).setBackground('#f2f2f3').setFontColor('#17191c');}
+  if ((sheet.getDataRange().getValues()[0] || []).length < headers.length) sheet.getRange(1,1,1,headers.length).setValues([headers]);
   return sheet;
 }
 function ledger_() {return sheet_('Procesos', ['ID', 'Estado JSON', 'Actualizado']);}
@@ -67,13 +68,14 @@ function processJob_(p) {
     p.evaluations.forEach(function(e) {p.rubric.criteria.forEach(function(q) {const id = p.posterId + '_' + e.judgeUid + '_' + q.id;upsert_(sheet,id,[id,p.posterId,p.eventId,p.title,p.category,e.judgeUid,e.judgeName,q.label,q.weight,e.scores[q.id],e.total,e.comments,e.createdAt,record.reportFileId]);});});
     record.done = true;record.mailState = 'not_required';save();return record;
   }
+  if (p.kind === 'judgeInvitation') upsert_(sheet_('Cuentas',['UID','Nombre','Correo','Rol','Actualizado']),p.uid,[p.uid,p.name,p.email,'judge',new Date().toISOString()]);
   // La copia de Firestore se guarda antes de enviar el correo.
   if (p.kind === 'registration' || p.kind === 'status') {
-    const sheet = sheet_('Inscripciones', ['ID', 'Evento ID', 'Evento', 'Nombre', 'Correo', 'Inscripción', 'Pago', 'Fecha de registro', 'Versión', 'Respuestas JSON', 'Última copia', 'Referencia pago']);
+    const sheet = sheet_('Inscripciones', ['ID', 'Evento ID', 'Evento', 'Nombre', 'Correo', 'Inscripción', 'Pago', 'Fecha de registro', 'Versión', 'Respuestas JSON', 'Última copia', 'Referencia pago', 'Perfil', 'Identificación', 'UID']);
     // Evitar que una confirmación atrasada sobrescriba un cambio de estado más reciente.
     const old = sheet.getDataRange().getValues().find(function(r) {return r[0] === p.registrationId;});
     if (!old || p.kind === 'status' && Date.parse(p.updatedAt || p.createdAt) >= Date.parse(old[10] || 0)) {
-      upsert_(sheet, p.registrationId, [p.registrationId,p.eventId,p.eventTitle,p.name,p.email,p.status,p.payment,p.createdAt,p.version,'Ver hoja Respuestas',p.updatedAt || p.createdAt,p.paymentReference || '']);
+      upsert_(sheet, p.registrationId, [p.registrationId,p.eventId,p.eventTitle,p.name,p.email,p.status,p.payment,p.createdAt,p.version,'Ver hoja Respuestas',p.updatedAt || p.createdAt,p.paymentReference || '',p.role || 'attendee',p.identification || '',p.uid || '']);
       const answersSheet = sheet_('Respuestas',['ID','Inscripción ID','Evento ID','Pregunta ID','Respuesta']);
       Object.keys(p.answers || {}).forEach(function(k) {upsert_(answersSheet,p.registrationId + '_' + k,[p.registrationId + '_' + k,p.registrationId,p.eventId,k,JSON.stringify(p.answers[k])]);});
     }
@@ -141,7 +143,7 @@ function certificate_(p, props) {
 function verificarInstalacion() {
   const p = properties_();if (!p.BRIDGE_SECRET || p.BRIDGE_SECRET.length < 32) throw new Error('Configura BRIDGE_SECRET de al menos 32 caracteres.');
   SpreadsheetApp.openById(p.SPREADSHEET_ID);DriveApp.getFolderById(p.EVIDENCE_FOLDER_ID);DriveApp.getFolderById(p.CERTIFICATE_FOLDER_ID);if(!p.EVALUATION_FOLDER_ID)throw new Error('Configure EVALUATION_FOLDER_ID.');DriveApp.getFolderById(p.EVALUATION_FOLDER_ID);
-  ledger_();sheet_('Inscripciones',['ID','Evento ID','Evento','Nombre','Correo','Inscripción','Pago','Fecha de registro','Versión','Respuestas JSON','Última copia','Referencia pago']);
+  ledger_();sheet_('Inscripciones',['ID','Evento ID','Evento','Nombre','Correo','Inscripción','Pago','Fecha de registro','Versión','Respuestas JSON','Última copia','Referencia pago','Perfil','Identificación','UID']);
   console.log('Drive y Sheets accesibles. Cuota restante de destinatarios: ' + MailApp.getRemainingDailyQuota());
 }
 /** Ejecutar solo después de comprobar Gmail. Ver OPERACION.md. */
