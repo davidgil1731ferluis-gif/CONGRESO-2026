@@ -1,20 +1,11 @@
-# Validación · 9 de octubre de 2026
+# Validación · 14 de octubre de 2026
 
-Se ejecutaron 38 pruebas automatizadas, todas aprobadas, con Node.js. Se comprobó la sintaxis de los módulos de la interfaz y del servidor.
+Se aprobaron 38 pruebas unitarias y de servicios simulados. Se ejecutó adicionalmente una prueba de integración con el emulador oficial de Firestore y tokens de prueba, sin proyecto real ni facturación.
 
-- Registro sin contraseña, conservación del perfil, identificación y respuestas, inscripción repetida sin sobrescritura, activación condicionada al pago y separación de roles.
-- Categorías configurables, ponderaciones, rúbricas conservadas al editar o eliminar categorías, jurados asignados, calificaciones válidas, bloqueo de dobles envíos y consolidación tras la última evaluación.
-- Privacidad de claves: listados de participantes sin claves, acceso del ponente solo a sus conferencias vinculadas, rechazo de clave incorrecta e imagen válida obligatoria.
-- Formularios por secciones, preguntas condicionales, opciones, borradores, publicación y portadas personalizadas.
-- Estados, pago y límites horarios de Bogotá, firmas de imagen y separación de administración.
-- Apps Script mediante servicios simulados: textos y pasos de los correos por etapa, PDF consolidado con todos los jurados guardado en carpeta independiente, respaldo, HMAC, caducidad, replay, cuotas e idempotencia de correo.
+El emulador comprobó las reglas reales: creación de perfiles, rechazo de roles autoasignados, registro y comprobación de respuestas, datos privados, aprobaciones administrativas, clave de conferencia, constancia de evidencia no falsificable desde el cliente, sello antes del cierre, rechazo después del cierre, jurados asignados, rango y ponderación de calificaciones y privacidad entre jurados. También comprobó el límite de 80 preguntas, condiciones encadenadas de cinco niveles y una rúbrica de 20 criterios.
 
-Ejecutar: `node --test tests/*.test.mjs`.
+Las pruebas de archivo verifican que Apps Script no ofrece operaciones de aprobación, que no crea archivos cuando Firebase deniega la autorización y que rechaza contenido disfrazado de imagen. Se verificó la vinculación del puente a un origen, canal y ventana exactos, sin tokens en URL.
 
-## Revisión de interfaz
+Pruebas unitarias: `node --test tests/*.test.mjs`. La integración utiliza FIRESTORE_EMULATOR_HOST y el proyecto de prueba demo-eventflow. Sin emulador, se omite explícitamente; no se simula una aprobación de reglas.
 
-La versión publicada se comprobó mediante interacción de navegador con datos ficticios aislados de la demo habitual: creación de categorías y criterios, invitación de jurado, inscripción pública sin contraseña, seguimiento, aprobación y pago simulado, asignación de póster, evaluación, consolidado y credencial del ponente con reverso y clave. La credencial móvil no presentó desbordamiento horizontal.
-
-## Límites de la validación
-
-El frontend publicado opera en demostración. No se proporcionaron Firebase, Gmail, Drive, Sheets ni el módulo de pagos real. La instalación del servidor, los índices, App Check, el envío de mensajes, las firmas del proveedor de pago, la evaluación concurrente en Firestore y la generación visual de PDF en Google deben verificarse con cuentas de prueba después de conectar esos servicios. Los simuladores no certifican disponibilidad, permisos ni cuotas reales.
+La interfaz institucional y los recorridos de demostración se conservan. El modo real Spark necesita una configuración Firebase, reglas e índices desplegados y una cuenta Apps Script autorizada. No se ha verificado todavía la conexión real entre GitHub Pages, el iframe Google, OAuth, Gmail y Drive, ni una prueba de carga o de cuotas del evento. La validación local no acredita disponibilidad de servicios reales.

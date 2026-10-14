@@ -1,124 +1,66 @@
-# Instalación de EventFlow
+# Instalación de EventFlow con Firebase Spark
 
-El flujo ampliado está descrito en [MEJORAS_ACADEMICAS.md](MEJORAS_ACADEMICAS.md). Incluye requisitos adicionales de cuentas, correo y evaluación.
+Esta versión no utiliza Cloud Functions, Cloud Scheduler, Cloud Storage ni Blaze. GitHub Pages sirve la interfaz. Firebase Authentication identifica a las personas y Firestore valida y guarda las operaciones. Apps Script procesa exclusivamente correos, imágenes, documentos y respaldo.
 
-## 1. Firebase
+## 1. Proyecto de Firebase
 
-1. Crea un proyecto independiente en la consola de Firebase y registra una aplicación web.
-2. Activa Authentication con proveedor **Correo electrónico/contraseña** y **Enlace de correo electrónico**. En dominios autorizados añade `TU_USUARIO.github.io` y, si probarás localmente, `localhost`.
-3. Crea Firestore y un bucket predeterminado de Cloud Storage. La implementación usa `getStorage().bucket()`; si tu proyecto tiene varios buckets, configura el predeterminado o adapta esa llamada.
-4. Activa App Check con **reCAPTCHA Enterprise** para los dominios de tu sitio. Copia su clave pública en `web/config.mjs`.
-5. Habilita la facturación que requieren los servicios de servidor y establece alertas de presupuesto. No se presupone que la operación será gratuita.
-6. Copia la configuración web de Firebase en `web/config.mjs`. Mantén `mode: 'demo'` hasta terminar la instalación. La región viene como `us-central1`; si la cambias, cambia también `setGlobalOptions` en `functions/index.mjs`.
+1. Crear el proyecto en Firebase y mantener el plan **Spark**, sin vincular facturación. Registrar una aplicación Web.
+2. En Authentication activar **Correo/contraseña**, **Enlace de correo electrónico** y **Anónimo**. La sesión anónima permite entregar el formulario sin crear contraseña; el enlace de correo verifica la identidad antes de acceder a la cuenta.
+3. Agregar el dominio **davidgil1731ferluis-gif.github.io** a los dominios autorizados.
+4. Crear Firestore en modo producción. No crear un bucket de Storage. La configuración provista solo despliega Firestore.
+5. Instalar las reglas y los índices de esta carpeta mediante Firebase CLI: `firebase deploy --only firestore --project TU_PROJECT_ID`. También se pueden instalar las reglas en la consola y crear los índices indicados en firestore.indexes.json.
+6. Mantener `web/config.mjs` en demo hasta completar la instalación. Copiar allí apiKey, authDomain, projectId y appId de la aplicación Web.
 
-El navegador solo contiene la configuración pública de Firebase. El Admin SDK usa la identidad del servicio desplegado.
+## 2. Cuenta administradora
 
-## 2. Drive, Sheets y Apps Script
+Crear una cuenta con correo y contraseña en Authentication y verificar su correo. Copiar su UID. Desde la consola de Firestore, crear **admins/UID_DE_LA_CUENTA** con el campo booleano **enabled: true**. Ningún usuario puede crear o modificar ese permiso desde la aplicación. Al iniciar sesión, se crea su perfil académico y se reconoce el acceso administrativo. Para revocarlo, cambiar enabled a false en la consola.
 
-1. Con la cuenta del organizador, crea tres carpetas privadas de Drive: **Evidencias**, **Certificados** y **Evaluaciones de pósteres**. Copia sus identificadores desde la URL.
-2. Crea una hoja de cálculo para el respaldo y copia su identificador.
-3. Crea un proyecto de Apps Script. Copia `apps-script/Code.gs` en un archivo `Code.gs`.
-4. En configuración del proyecto, habilita el manifiesto `appsscript.json` y reemplázalo por el incluido.
-5. En **Propiedades del script**, configura:
+## 3. Drive y respaldo
+
+Con la cuenta organizadora, crear tres carpetas privadas: Evidencias, Certificados y Evaluaciones. Crear una hoja de cálculo para respaldo. Copiar sus identificadores. Los documentos permanecen privados; la descarga pasa por Firebase y el servicio de archivos de Apps Script.
+
+## 4. Apps Script
+
+1. Crear un proyecto de Apps Script con la misma cuenta Google que tiene permiso sobre el proyecto Firebase. Vincularlo al proyecto estándar de Google Cloud asociado a Firebase mediante su número de proyecto. Mantener la facturación sin activar.
+2. Copiar **Code.gs**, **Spark.gs**, **Domain.gs**, **Bridge.html** y el manifiesto **appsscript.json** incluidos en esta carpeta. Sustituir el puente anterior; ya no se usa BRIDGE_SECRET.
+3. La cuenta ejecutora necesita acceso IAM a Firestore y Firebase Authentication. Si creó el proyecto Firebase con esa cuenta, comprobar sus permisos existentes. Para una cuenta diferente, usar los roles Datastore User y Firebase Authentication Admin, sin entregar credenciales al navegador ni subir cuentas de servicio.
+4. Confirmar que las API Cloud Firestore e Identity Toolkit están habilitadas en el proyecto. No habilitar Cloud Functions, Cloud Run ni Storage.
+5. Configurar estas propiedades del script:
 
 | Propiedad | Valor |
 |---|---|
-| `SPREADSHEET_ID` | ID de la hoja |
-| `EVIDENCE_FOLDER_ID` | ID de la carpeta de evidencias |
-| `CERTIFICATE_FOLDER_ID` | ID de la carpeta de certificados |
-| `EVALUATION_FOLDER_ID` | ID de la carpeta de formatos de evaluación de pósteres |
-| `BRIDGE_SECRET` | Secreto aleatorio de 32 caracteres o más, compartido únicamente con Firebase |
-| `CERTIFICATE_TEMPLATE_ID` | Opcional: ID de una presentación de Google Slides que servirá como plantilla |
+| FIREBASE_PROJECT_ID | ID del proyecto Firebase |
+| FIREBASE_API_KEY | Clave API del mismo proyecto para Identity Toolkit, utilizable desde servidor; no restringida por referente HTTP. Puede restringirse a esa API. No es una clave privada de cuenta de servicio. |
+| APP_URL | https://davidgil1731ferluis-gif.github.io/CONGRESO-2026/ |
+| SPREADSHEET_ID | ID de la hoja de respaldo |
+| EVIDENCE_FOLDER_ID | ID de la carpeta Evidencias |
+| CERTIFICATE_FOLDER_ID | ID de la carpeta Certificados |
+| EVALUATION_FOLDER_ID | ID de la carpeta Evaluaciones |
+| CERTIFICATE_TEMPLATE_ID | Opcional: presentación de Slides para certificados |
 
-6. Ejecuta **`verificarInstalacion`** y autoriza Drive, Sheets, Slides, Documents y Gmail con la cuenta organizadora. Esta operación comprueba los accesos y crea las hojas necesarias. No envía mensajes.
-7. Implementa como **Aplicación web**, ejecutada como la cuenta organizadora, con acceso **Cualquier persona**. El endpoint valida una firma HMAC y una fecha de solicitud; las operaciones no aceptan llamadas sin el secreto. Algunas organizaciones bloquean ese tipo de publicación; en ese caso se necesita otro puente autenticado y no podrá usarse esta instalación tal cual.
-8. Copia la URL que termina en `/exec`. Cada cambio posterior de código requiere una nueva versión de esta implementación.
+6. Ejecutar **verificarInstalacion_** desde el editor y autorizar los servicios con la cuenta organizadora. Ejecutar **instalarProcesosSpark_** para crear un único activador de tiempo que atiende la cola cada minuto. Ambas funciones son privadas para google.script.run; se ejecutan desde el editor.
+7. Publicar como aplicación web, ejecutada como la cuenta organizadora y con acceso **Cualquier persona**. Copiar la URL /exec en `appsScriptUrl` de web/config.mjs. Cada cambio posterior requiere una nueva versión del despliegue de Apps Script. Si la organización impide aplicaciones web accesibles públicamente o los permisos OAuth requeridos, esta instalación no podrá operar sin una solución institucional autorizada.
 
-No añadas permisos públicos a las carpetas ni a los PDF. Las descargas pasan por Firebase después de comprobar al propietario.
+El iframe de conexión no envía tokens en la URL. Vincula sus mensajes a un canal aleatorio, a la ventana exacta y al origen permitido. Apps Script comprueba el ID token con Google y realiza las lecturas de autorización con el token del participante: Firestore es quien concede o deniega el acceso. El token OAuth de la cuenta organizadora permanece en el servidor.
 
-### Certificado personalizado
+## 5. Activar la aplicación
 
-Sin plantilla, se genera un certificado claro con estilo Steep. Si proporcionas una presentación de Google Slides, usa estos campos:
+Cambiar mode a **firebase-spark** y publicar web/ mediante el flujo existente de GitHub Pages. En Configuración, guardar organizador, correo de copia, etiqueta Gmail, URL pública y URL HTTPS del módulo de pagos. El módulo de pagos mantiene la validación administrativa con referencia; no se confirma un pago por abrir un enlace.
 
-`{{NOMBRE}}`, `{{EVENTO}}`, `{{CONFERENCIA}}`, `{{FECHA}}`, `{{ORGANIZADOR}}`, `{{ID}}`.
+## 6. Verificación con cuentas reales
 
-La presentación completa se convierte a PDF. Mantén una sola diapositiva si quieres un certificado de una página.
+- Crear y publicar un formulario. Abrirlo desde otro dispositivo.
+- Inscribirse sin contraseña y completar las comprobaciones de Firebase. Solo los envíos completos se muestran para revisión.
+- Comprobar el correo con copia y el enlace privado de seguimiento. Aprobar la propuesta y el pago; revisar sus correos y la activación de contraseña.
+- Asignar jurados por correo, crear categorías y pósteres, enviar todas las evaluaciones y comprobar el PDF privado de Drive.
+- Vincular un ponente aprobado a una conferencia y comprobar su credencial y clave.
+- Sellar con clave e imagen antes del cierre. Comprobar que después del cierre Firebase rechaza tanto nuevas solicitudes de imagen como el sello final.
+- Descargar certificado y comprobar el correo, las carpetas y las hojas de respaldo.
 
-## 3. Desplegar Firebase
+## Cuotas y rendimiento
 
-Instala Node.js 22 y Firebase CLI desde sus fuentes oficiales. Desde la raíz del proyecto:
+Las consultas, aprobaciones y validaciones operan directamente en Firebase. Correo y PDF se atienden en una cola separada, hasta cuatro procesos por ejecución. Las preguntas se comprueban en pequeños bloques paralelos para respetar el límite de evaluación de reglas de Firestore; esto consume lecturas y escrituras adicionales. Se admiten hasta 80 preguntas y hasta cinco niveles de condiciones encadenadas. Las rúbricas admiten 20 criterios.
 
-```powershell
-npm install -g firebase-tools
-firebase login
-firebase use --add
-cd functions
-npm install
-cd ..
-firebase functions:secrets:set APPS_SCRIPT_URL
-firebase functions:secrets:set BRIDGE_SECRET
-firebase deploy --only firestore,storage,functions
-```
+Spark, Firebase Authentication, Apps Script, Gmail y Drive tienen cuotas. Esta adaptación elimina la dependencia de Blaze, pero no garantiza capacidad ilimitada ni entrega inmediata de correos. Antes del evento, comprobar el número de inscripciones esperado y las cuotas de la cuenta organizadora. Al alcanzar una cuota gratuita, el servicio puede rechazar operaciones hasta su restablecimiento: no se convierte automáticamente en un servicio facturado.
 
-Al solicitar `APPS_SCRIPT_URL`, pega la URL `/exec`. En `BRIDGE_SECRET`, introduce el mismo secreto de las propiedades de Apps Script. El secreto se escribe en el diálogo de la herramienta, no en el código.
-
-El despliegue instala reglas que bloquean el acceso directo del navegador a Firestore y Storage. Todas las operaciones pasan por la función `api`, que verifica autenticación, rol, propietario y transiciones. El proceso programado `processJobs` atiende un lote de hasta cuatro trabajos por minuto. Confirma en la consola que Cloud Scheduler y los índices de Firestore estén activos y que no haya errores de permisos.
-
-## 4. Administrador
-
-1. Cambia temporalmente `mode` a `firebase` y levanta la interfaz local con `npm start`.
-2. Crea la cuenta que será administradora desde la interfaz y verifica su correo.
-3. Copia su UID desde Firebase Authentication.
-4. Con credenciales de aplicación predeterminadas del propietario del proyecto (por ejemplo, mediante Google Cloud CLI `gcloud auth application-default login` y el proyecto configurado), ejecuta:
-
-```powershell
-cd functions
-node set-admin.mjs UID_DE_LA_CUENTA
-```
-
-También puedes asignar el claim `admin: true` mediante un entorno de administración Firebase ya autorizado. No uses ni subas una clave de cuenta de servicio a la web.
-
-5. Cierra sesión y vuelve a entrar. La aplicación reconocerá el claim de administrador. Tener un correo con la palabra «admin» no concede privilegios en el modo real.
-
-## 5. Correo, etiqueta y pagos
-
-En **Configuración** del aplicativo, establece el organizador, el correo de copia, la etiqueta y la URL HTTPS del módulo de pagos.
-
-La confirmación de inscripción se envía al participante con copia al correo indicado. La etiqueta se aplica en el Gmail que envía el mensaje. Gmail no permite imponer etiquetas en la cuenta del destinatario: para ordenar la copia, crea allí un filtro por remitente/asunto y aplica la etiqueta deseada.
-
-El módulo de pagos recibe `registrationId` y `eventId` en la URL. Estos datos identifican el registro y no autorizan un pago. En esta entrega, el administrador confirma el pago verificado y escribe su referencia. No se acepta la aprobación desde un parámetro de URL, un mensaje del iframe ni una respuesta del navegador.
-
-Para automatizar el módulo existente, adapta su webhook o API de servidor con su firma real y referencia única, validando monto, moneda, evento y estado de la transacción antes de actualizar Firestore. El módulo no se recibió, así que no se inventó un webhook que aparentara validar sus pagos.
-
-## 6. GitHub Pages
-
-1. Crea el repositorio de destino y sube **el contenido de esta carpeta**, incluyendo `.github`, `web`, `functions` y `apps-script`. No subas `node_modules`, secretos ni claves privadas.
-2. En GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. Comprueba que tu rama principal sea `main`; si tiene otro nombre, modifica `pages.yml`.
-4. Ejecuta el flujo **Publicar EventFlow**. Este flujo prueba las reglas compartidas y publica únicamente `web/`.
-5. El enlace tendrá la forma `https://TU_USUARIO.github.io/TU_REPOSITORIO/`. La navegación usa el fragmento `#form=ID`, compatible con GitHub Pages.
-6. Con Firebase instalado, crea y publica un formulario; usa **Compartir enlace**. El enlace real comparte el mismo formulario entre dispositivos.
-
-## 7. Comprobación antes del evento
-
-Prueba primero con cuentas y archivos de prueba:
-
-- El formulario publicado abre desde otro dispositivo; el borrador no reemplaza la versión publicada hasta volver a publicar.
-- Una inscripción nueva queda en espera y genera una copia en Sheets y un correo con copia.
-- Una cuenta participante no puede abrir datos de otra persona ni aprobar estados.
-- El pago no se habilita antes de la aprobación; las conferencias no se habilitan antes de aprobar el pago.
-- Una imagen dentro del horario registra asistencia; después del cierre se rechaza aunque el reloj del computador se cambie.
-- El PDF llega adjunto al correo, existe en la carpeta privada de Drive y se descarga desde la cuenta del participante.
-- Repetir una inscripción o un sello no crea otro registro ni otro certificado.
-- Los errores de la cola aparecen en **Reportes** y los archivos temporales procesados desaparecen de Storage.
-- Revisa móvil y computador, permisos, cuotas y una prueba de carga acorde al número de asistentes esperado.
-
-## Operación y recuperación
-
-La cola conserva los trabajos y reintenta errores hasta cinco veces con espera progresiva. Si el correo se interrumpe en una ventana en la que no se puede confirmar si se envió, se marca **Revisar envío** para evitar duplicar correos automáticamente. Consulta Gmail del organizador antes de resolverlo.
-
-El archivo `OPERACION.md` explica recuperación, copias y datos temporales. Las cuotas de Gmail/Apps Script siguen aplicando; la cola no las elimina.
-
-Referencias oficiales: [GitHub Pages con Actions](https://docs.github.com/en/pages/getting-started/start-your-journey/deploying-your-website-automatically), [funciones callable de Firebase](https://firebase.google.com/docs/functions/callable), [cuotas de Apps Script](https://developers.google.com/apps-script/guides/services/quotas).
-
-Antes de recibir inscripciones sin contraseña, guarde en Configuración la URL HTTPS pública completa de la aplicación. Los enlaces privados y de activación se generan con esa URL; su dominio debe estar autorizado en Firebase.
+Referencias: [Firestore REST e IAM](https://firebase.google.com/docs/firestore/use-rest-api), [límites de reglas](https://firebase.google.com/docs/firestore/security/rules-structure), [cuotas de Apps Script](https://developers.google.com/apps-script/guides/services/quotas).

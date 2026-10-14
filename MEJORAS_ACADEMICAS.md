@@ -5,7 +5,7 @@ La web sigue en `mode: 'demo'`. Las cuentas, invitaciones y respaldos se simulan
 ## Recorrido de inscripción
 
 1. La persona abre el formulario público, indica nombre, correo, identificación y perfil (ponente/expositor, autor de póster o asistente), responde y autoriza el tratamiento de datos. No necesita contraseña.
-2. Firebase crea o reutiliza la identidad correspondiente al correo. Las respuestas se guardan sin sobrescribir una inscripción existente. El correo de confirmación incluye un enlace privado para verificar la propiedad del correo y consultar el estado.
+2. Firebase registra la inscripción mediante una sesión provisional sin contraseña. El servicio de correo prepara el acceso por correo, que verifica su identidad al abrir el enlace. Las respuestas se guardan sin sobrescribir una inscripción existente. El correo de confirmación incluye un enlace privado para verificar la propiedad del correo y consultar el estado.
 3. El administrador revisa la propuesta. Al aprobarla, se prepara un correo con las instrucciones de pago. La validación del pago sigue siendo administrativa o mediante la integración del módulo existente; no se confirma por abrir su enlace.
 4. Al validar el pago, se prepara otro correo con un enlace de vigencia limitada para crear la contraseña. El nombre, la identificación y las respuestas se conservan.
 5. Con aprobación total, el panel de seguimiento se reemplaza por una credencial. La asistencia a otras conferencias aparece en una sección independiente.
@@ -36,15 +36,8 @@ Cada conferencia recibe automáticamente una clave única al crearse o guardarse
 
 Las claves se guardan en una colección privada separada (`conferenceSecrets`). Los listados de participantes no las contienen. El servidor valida la clave, la imagen, las aprobaciones y el horario de Bogotá al sellar, y limita los intentos de clave. Para conferencias anteriores a esta versión, editar y guardar genera la clave faltante.
 
-## Configuración adicional para operación real
+## Configuración para operación real
 
-1. Habilitar en Firebase Authentication **Correo/contraseña** y **Enlace de correo electrónico**. Agregar el dominio de GitHub Pages a los dominios autorizados.
-2. Definir en **Configuración** la URL HTTPS pública completa de la aplicación. Se utiliza para los enlaces privados y de activación. No añadir secretos a la web.
-3. Desplegar las Functions, las reglas y los índices actualizados. Las colecciones `accounts`, `categories`, `posters` y `conferenceSecrets`, y las subcolecciones `posters/{id}/evaluations`, permanecen inaccesibles mediante el SDK público de Firestore; las funciones verifican permisos.
-4. Crear en Drive una carpeta privada adicional para formatos de evaluación y añadir su ID a las propiedades de Apps Script como `EVALUATION_FOLDER_ID`.
-5. Actualizar el script y sus permisos, incluido Google Documents, y publicar una nueva versión del puente. Ejecutar `verificarInstalacion` para comprobar las cuatro ubicaciones de respaldo y documentos.
-6. Verificar con cuentas de prueba reales el enlace de seguimiento, la activación, los correos de cada fase, las invitaciones, la evaluación concurrente de dos jurados y la descarga privada del PDF. La validación automatizada local usa adaptadores y simulaciones; no acredita estos servicios sin conexión.
+La arquitectura vigente usa Firebase Spark para validaciones y datos, y Apps Script para correo, evidencia, PDF y respaldo. La asignación de administrador se realiza mediante admins/UID con enabled true en la consola Firestore. Las reglas permiten exclusivamente las operaciones correspondientes a cada rol.
 
-Los correos de confirmación conservan la copia y la etiqueta configuradas. El envío usa la cola y el registro de idempotencia existentes. Un resultado de Gmail incierto se mantiene en revisión, evitando reenvíos automáticos duplicados.
-
-Referencias de implementación: [Firebase, enlaces de acción desde servidor](https://firebase.google.com/docs/auth/admin/email-action-links) y [controladores de correo personalizados](https://firebase.google.com/docs/auth/custom-email-handler).
+Consulte [INSTALACION.md](INSTALACION.md) y [SIN_BLAZE.md](SIN_BLAZE.md). No se requiere Blaze, Cloud Functions, Cloud Scheduler ni Firebase Storage.

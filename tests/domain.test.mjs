@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {visibleQuestions,validateAnswers,validateSchema,attendanceGate,validateImage} from '../functions/domain.mjs';
+import {validateSchema,validateAnswers,validateImage,attendanceGate,visibleQuestions} from '../web/domain.mjs';
 const questions=[{id:'profile',label:'Perfil',type:'select',options:['Estudiante','Profesional'],required:true,step:1},{id:'university',label:'Universidad',type:'text',required:true,step:1,condition:{field:'profile',operator:'eq',value:'Estudiante'}},{id:'campus',label:'Sede',type:'text',required:true,step:2,condition:{field:'university',operator:'neq',value:'Otra'}}];
 test('Una pregunta oculta obligatoria no bloquea ni conserva respuestas viejas',()=>{assert.deepEqual(validateAnswers(questions,{profile:'Profesional',university:'Dato anterior',campus:'Dato viejo'}),{profile:'Profesional'});});
 test('Condición encadenada respeta la visibilidad del padre',()=>{assert.deepEqual(visibleQuestions(questions,{profile:'Profesional',university:'Universidad'}).map(q=>q.id),['profile']);});
@@ -15,4 +15,3 @@ test('Rechaza antes de apertura y conferencia deshabilitada',()=>{assert.throws(
 test('La asistencia exige aprobación de inscripción y pago',()=>{assert.throws(()=>attendanceGate({...r,status:'pending'},c),/inscripción/);assert.throws(()=>attendanceGate({...r,payment:'pending'},c),/pago/);});
 test('Rechaza archivos disfrazados de imagen',()=>{assert.throws(()=>validateImage(Buffer.from('<html>no image</html>').toString('base64'),'image/png'),/contenido/);});
 test('Acepta firma PNG válida y rechaza archivo excesivo',()=>{const png=Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]);assert.equal(validateImage(png.toString('base64'),'image/png'),12);assert.throws(()=>validateImage(Buffer.alloc(3*1024*1024+1).toString('base64'),'image/png'),/3 MB/);});
-test('La validación del navegador coincide con la del servidor',async()=>{assert.equal(await readFile(new URL('../web/domain.mjs',import.meta.url),'utf8'),await readFile(new URL('../functions/domain.mjs',import.meta.url),'utf8'));});

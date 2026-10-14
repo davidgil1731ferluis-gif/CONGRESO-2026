@@ -14,7 +14,7 @@ Consulte [MEJORAS_ACADEMICAS.md](MEJORAS_ACADEMICAS.md) para el nuevo recorrido 
 - Categorías y rúbricas editables, asignación de jurados y formato PDF consolidado en una carpeta independiente de Drive.
 - Inscripción en espera, aprobada o no aprobada. Pago separado, con aprobación administrativa y referencia verificable.
 - Conferencias con ponente, lugar, apertura y cierre de asistencia en horario de Bogotá.
-- Imagen de evidencia de hasta 3 MB. El servidor valida la clave única, los estados y el horario antes de sellar la asistencia.
+- Imagen de evidencia de hasta 3 MB. Las reglas de Firebase validan la clave única, los estados y el horario antes de sellar la asistencia.
 - Evidencias y certificados PDF privados en Drive; descarga del PDF mediante la cuenta del participante.
 - Confirmación de inscripción con copia, correos de estado y certificado adjunto; etiqueta en Gmail del organizador.
 - Respaldo en Sheets de inscripciones, respuestas, asistencia y procesos. Exportación CSV de inscripciones y asistencias.
@@ -22,11 +22,9 @@ Consulte [MEJORAS_ACADEMICAS.md](MEJORAS_ACADEMICAS.md) para el nuevo recorrido 
 
 ## Estado de entrega
 
-El proyecto viene en **modo demo**. Es una demostración funcional que guarda datos en el navegador. No envía correos, no cobra, no crea archivos en Google y el enlace no comparte los datos entre dispositivos. La barra superior lo indica.
+La arquitectura está adaptada a Firebase Spark, sin Blaze. Firebase valida los datos y Apps Script procesa correos, Drive y respaldos. Consulte [SIN_BLAZE.md](SIN_BLAZE.md) y [INSTALACION.md](INSTALACION.md).
 
-El código de Firebase y Apps Script está incluido para instalarlo. **No está desplegado ni verificado en una cuenta real.** Las pruebas automatizadas se describen en `VALIDACION.md`.
-
-El módulo de pagos anterior no fue proporcionado. Se incluye una URL configurable para abrirlo y aprobación manual desde el administrador. La aprobación automática de ese módulo necesita adaptar su notificación de servidor; no se considera conectada por introducir una URL.
+La página permanece en modo demo. No se han conectado ni verificado los servicios de una cuenta Google real.
 
 ## Probar la demo
 
@@ -54,24 +52,24 @@ Sigue `INSTALACION.md`. Debes disponer de:
 | Servicio | Datos necesarios |
 |---|---|
 | GitHub | Repositorio y GitHub Pages mediante Actions |
-| Firebase | Proyecto, configuración web, Authentication, Firestore, Functions, Storage y App Check |
-| Google | Cuenta organizadora, una hoja de cálculo, dos carpetas privadas de Drive y Apps Script |
+| Firebase | Proyecto, configuración web, Authentication y Firestore, con plan Spark |
+| Google | Cuenta organizadora, una hoja de cálculo, tres carpetas privadas de Drive y Apps Script |
 | Correos | Destinatario de copia y nombre de etiqueta |
 | Pagos | URL del módulo existente; contrato de integración si tendrá aprobación automática |
 
 Firebase conserva el registro principal. Sheets recibe una copia para control y reportes; editar Sheets no cambia aprobaciones en Firebase.
 
-Las imágenes usan Firebase Storage **temporalmente** para transportar los archivos sin superar el límite de tamaño de un documento de Firestore. Se conservan finalmente en Drive y se elimina la copia temporal después de procesarlas correctamente.
+Las imágenes se reciben directamente en Drive. Firebase valida las solicitudes y confirma la asistencia mediante una constancia privada del archivo recibido.
 
 ## Archivos
 
-`web/`: interfaz que publica GitHub Pages. `functions/`: servidor Firebase y validaciones. `apps-script/`: Drive, Gmail, PDF y Sheets. `tests/`: pruebas sin dependencias. `.github/workflows/pages.yml`: publicación del sitio.
+`web/`: interfaz que publica GitHub Pages. `firestore.rules`: validaciones y permisos de Firebase. `apps-script/`: Drive, Gmail, PDF y Sheets. `tests/`: pruebas sin dependencias. `.github/workflows/pages.yml`: publicación del sitio.
 
 No hay secretos ni claves privadas en este paquete. Las credenciales de servidor nunca deben colocarse en `web/config.mjs` ni subirse al repositorio.
 
 ## Alcance de la primera versión
 
-Se admiten 80 preguntas por formulario y 10.000 registros por consulta del panel. Los reportes de mayor tamaño requieren procesamiento de servidor. Las condiciones trabajan sobre preguntas anteriores; no son un editor de expresiones booleanas arbitrarias. El editor crea formularios y define pasos, pero no permite insertar HTML libre ni cambiar las reglas del servidor.
+Se admiten 80 preguntas por formulario, hasta cinco niveles de condiciones encadenadas y 20 criterios por rúbrica. Los reportes de mayor tamaño requieren procesamiento de servidor. Las condiciones trabajan sobre preguntas anteriores; no son un editor de expresiones booleanas arbitrarias. El editor crea formularios y define pasos, pero no permite insertar HTML libre ni cambiar las reglas del servidor.
 
 La evidencia es un registro de participación declarado por el usuario, no una verificación biométrica o de ubicación. La generación del certificado comienza después de aceptar el sello, sin revisión adicional de la imagen. Si se necesita revisión humana antes del certificado, debe añadirse esa fase.
 

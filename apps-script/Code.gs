@@ -1,39 +1,4 @@
-/** EventFlow · puente privado. Nunca llamar desde GitHub Pages ni publicar BRIDGE_SECRET. */
-function doPost(e) {
-  try {
-    const envelope = JSON.parse(e.postData.contents);
-    const secret = PropertiesService.getScriptProperties().getProperty('BRIDGE_SECRET');
-    if (!secret || typeof envelope.body !== 'string' || Math.abs(Date.now() - Number(envelope.ts)) > 300000 || !/^[a-zA-Z0-9-]{20,80}$/.test(envelope.nonce || '')) throw new Error('Solicitud no autorizada.');
-    const expected = Utilities.computeHmacSha256Signature(envelope.ts + '.' + envelope.nonce + '.' + envelope.body, secret).map(function (b) {return ('0' + (b & 255).toString(16)).slice(-2);}).join('');
-    let diff = expected.length ^ String(envelope.signature || '').length;
-    for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ String(envelope.signature || '').charCodeAt(i);
-    if (diff) throw new Error('Firma inválida.');
-    const lock = LockService.getScriptLock();lock.waitLock(30000);
-    try {
-      const cache = CacheService.getScriptCache();if (cache.get(envelope.nonce)) throw new Error('Solicitud repetida.');cache.put(envelope.nonce, '1', 600);
-      const request = JSON.parse(envelope.body);
-      let result;
-      if (request.action === 'job') result = processJob_(request.payload);
-      else if (request.action === 'downloadEvaluation') {
-        const row = ledger_().getDataRange().getValues().find(function(r) {return r[0] === 'evaluation_' + request.payload.posterId;});
-        const record = row && JSON.parse(row[1]);if (!record || !record.done || record.reportFileId !== request.payload.fileId) throw new Error('Formato no disponible.');
-        const file = DriveApp.getFileById(record.reportFileId), blob = file.getBlob();if (blob.getBytes().length > 5 * 1024 * 1024) throw new Error('Formato demasiado grande.');
-        result = {fileName:file.getName(),base64:Utilities.base64Encode(blob.getBytes())};
-      } else if (request.action === 'download') {
-        // Firebase ya verificó que este certificado pertenece al solicitante.
-        const ledger = ledger_(), rows = ledger.getDataRange().getValues();
-        const row = rows.find(function (r) {return r[0] === 'certificate_' + request.payload.attendanceId;});
-        const record = row && JSON.parse(row[1]);
-        if (!record || record.certificateFileId !== request.payload.fileId) throw new Error('Certificado no disponible.');
-        const file = DriveApp.getFileById(record.certificateFileId), blob = file.getBlob();
-        if (blob.getBytes().length > 5 * 1024 * 1024) throw new Error('Certificado demasiado grande.');
-        result = {fileName: file.getName(), base64: Utilities.base64Encode(blob.getBytes())};
-      } else throw new Error('Operación inválida.');
-      return json_({ok: true, result: result});
-    } finally {lock.releaseLock();}
-  } catch (error) {return json_({ok: false, error: String(error.message).slice(0, 500)});}
-}
-function json_(value) {return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON);}
+/** EventFlow Spark: correo, documentos y respaldo. Sin decisiones de aprobación. */
 function properties_() {
   const p = PropertiesService.getScriptProperties().getProperties();
   ['SPREADSHEET_ID', 'EVIDENCE_FOLDER_ID', 'CERTIFICATE_FOLDER_ID'].forEach(function(k) {if (!p[k]) throw new Error('Falta configurar ' + k);});
@@ -81,6 +46,7 @@ function processJob_(p) {
     }
   }
   if (p.kind === 'certificate') {
+    if (!record.evidenceFileId && p.evidenceFileId) {record.evidenceFileId = p.evidenceFileId;save();}
     if (!record.evidenceFileId) {
       if (!p.base64 || !['image/jpeg','image/png','image/webp'].includes(p.mime)) throw new Error('Evidencia inválida.');
       const ext = {'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[p.mime];
@@ -140,14 +106,14 @@ function certificate_(p, props) {
   presentation.saveAndClose();
   const pdf = source.getAs(MimeType.PDF).setName(filename), file = folder.createFile(pdf);source.setTrashed(true);return file.getId();
 }
-function verificarInstalacion() {
-  const p = properties_();if (!p.BRIDGE_SECRET || p.BRIDGE_SECRET.length < 32) throw new Error('Configura BRIDGE_SECRET de al menos 32 caracteres.');
+function verificarInstalacion_() {
+  const p = properties_();sparkProperties_();sparkQuery_('events',[],1);
   SpreadsheetApp.openById(p.SPREADSHEET_ID);DriveApp.getFolderById(p.EVIDENCE_FOLDER_ID);DriveApp.getFolderById(p.CERTIFICATE_FOLDER_ID);if(!p.EVALUATION_FOLDER_ID)throw new Error('Configure EVALUATION_FOLDER_ID.');DriveApp.getFolderById(p.EVALUATION_FOLDER_ID);
   ledger_();sheet_('Inscripciones',['ID','Evento ID','Evento','Nombre','Correo','Inscripción','Pago','Fecha de registro','Versión','Respuestas JSON','Última copia','Referencia pago','Perfil','Identificación','UID']);
   console.log('Drive y Sheets accesibles. Cuota restante de destinatarios: ' + MailApp.getRemainingDailyQuota());
 }
 /** Ejecutar solo después de comprobar Gmail. Ver OPERACION.md. */
-function resolverEnvioRevisado() {
+function resolverEnvioRevisado_() {
   const props = PropertiesService.getScriptProperties(), id = props.getProperty('REVIEW_JOB_ID'), messageId = props.getProperty('REVIEW_SENT_MESSAGE_ID'), notSent = props.getProperty('REVIEW_CONFIRMED_NOT_SENT') === 'true';
   if (!id || (!messageId && !notSent) || (messageId && notSent)) throw new Error('Indica el proceso y una única decisión después de revisar Gmail.');
   const lock = LockService.getScriptLock();lock.waitLock(30000);

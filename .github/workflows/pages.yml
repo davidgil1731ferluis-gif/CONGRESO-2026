@@ -23,6 +23,18 @@ jobs:
           node-version: '22'
       - name: Verificar comportamiento
         run: node --test tests/*.test.mjs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Descargar emulador oficial de Firestore
+        run: |
+          curl --fail --location --silent --output "$RUNNER_TEMP/firestore.jar" https://storage.googleapis.com/firebase-preview-drop/emulator/cloud-firestore-emulator-v1.22.0.jar
+          echo "9b6498b7f62714d67f48f59b3818883cd682dbcd46b9f59511de81c97bb5166c  $RUNNER_TEMP/firestore.jar" | sha256sum --check --status
+      - name: Verificar reglas reales sin proyecto ni facturación
+        env:
+          FIRESTORE_EMULATOR_JAR: ${{ runner.temp }}/firestore.jar
+        run: node tests/run-firestore-emulator.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

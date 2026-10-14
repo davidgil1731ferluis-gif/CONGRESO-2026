@@ -1,6 +1,7 @@
+import {createSparkAPI} from './spark.mjs?v=spark-2';
 import {academicDemo,migrateAcademic} from './academic-demo.mjs';
 import {participation,checkCode} from './academic-domain.mjs';
-import {config} from './config.mjs';
+import {config} from './config.mjs?v=spark-2';
 import {validateSchema,validateAnswers,attendanceGate,validateImage} from './domain.mjs?v=vivid-1';
 const key='eventflow-demo-v1'+(typeof location!=='undefined'&&new URLSearchParams(location.search).get('preview')==='academic'?'-academic-review':'');
 const clone=v=>structuredClone(v);
@@ -21,19 +22,17 @@ const seed=()=>{
 function persist(){localStorage.setItem(key,JSON.stringify(state));}
 export async function init(){
  if(demo){try{state=JSON.parse(localStorage.getItem(key))||seed()}catch{state=seed()}migrateAcademic(state);persist();user={uid:'demo-admin',name:'Administrador demo',email:'admin@example.com',admin:true};return user;}
- if(config.mode!=='firebase')throw new Error('Modo de configuración inválido.');
- if(!config.firebase.projectId||!config.firebase.apiKey||!config.appCheckSiteKey)throw new Error('Completa Firebase y App Check en config.mjs antes de activar el modo real.');
+ if(config.mode!=='firebase-spark')throw new Error('Seleccione demo o firebase-spark en config.mjs.');
+ if(!config.firebase.projectId||!config.firebase.apiKey)throw new Error('Complete la configuración web de Firebase.');
  const base='https://www.gstatic.com/firebasejs/12.4.0/';
- const [appSDK,authSDK,fnSDK,checkSDK]=await Promise.all([import(base+'firebase-app.js'),import(base+'firebase-auth.js'),import(base+'firebase-functions.js'),import(base+'firebase-app-check.js')]);
- const app=appSDK.initializeApp(config.firebase);
- checkSDK.initializeAppCheck(app,{provider:new checkSDK.ReCaptchaEnterpriseProvider(config.appCheckSiteKey),isTokenAutoRefreshEnabled:true});
- const auth=authSDK.getAuth(app), functions=fnSDK.getFunctions(app,config.region);
- live={auth,authSDK,functions,fnSDK};
+ const [appSDK,authSDK,firestoreSDK]=await Promise.all([import(base+'firebase-app.js'),import(base+'firebase-auth.js'),import(base+'firebase-firestore.js')]);
+ const app=appSDK.initializeApp(config.firebase),auth=authSDK.getAuth(app),db=firestoreSDK.getFirestore(app);
+ live={auth,authSDK,db,firestoreSDK,api:createSparkAPI({db,sdk:firestoreSDK,auth,config})};
  await authSDK.authStateReady?.(auth); // Versiones sin helper usan el observador abajo.
  await new Promise(resolve=>{const unsub=authSDK.onAuthStateChanged(auth,u=>{user=u;unsub();resolve()})});
  return await currentUser();
 }
-export async function currentUser(){if(demo)return user;if(!live.auth.currentUser)return null;await live.auth.currentUser.reload();const u=live.auth.currentUser,t=await u.getIdTokenResult();return {uid:u.uid,email:u.email,name:u.displayName||u.email,admin:t.claims.admin===true,verified:u.emailVerified};}
+export async function currentUser(){if(demo)return user;const u=live.auth.currentUser;if(!u||u.isAnonymous)return null;await u.reload();let admin=false;if(u.emailVerified){await live.api('myProfile');const marker=await live.firestoreSDK.getDoc(live.firestoreSDK.doc(live.db,'admins',u.uid));admin=marker.exists()&&marker.data().enabled===true;}return {uid:u.uid,email:u.email,name:u.displayName||u.email,admin,verified:u.emailVerified};}
 export async function login(email,password,signup=false,name=''){
  if(demo){email=email.trim().toLowerCase();let a=state.accounts.find(a=>a.email===email);if(!a&&email!=='admin@example.com'){a={uid:id(),email,name:name||'Participante demo',role:'attendee',activated:signup};state.accounts.push(a);persist();}user=email==='admin@example.com'?{uid:'demo-admin',email,name:'Administrador demo',admin:true,role:'admin'}:{...a,admin:false};return user;}
  const result=await live.authSDK[signup?'createUserWithEmailAndPassword':'signInWithEmailAndPassword'](live.auth,email,password);
@@ -49,11 +48,10 @@ export async function logout(){if(demo){user=null;return}await live.authSDK.sign
 export function resetDemo(){localStorage.removeItem(key);location.reload();}
 export async function call(action,data={}){
  if(!demo){
-   let result=(await live.fnSDK.httpsCallable(live.functions,'api')({action,...data})).data;
-   if(!result?.items)return result;
-   const items=[...result.items];let pages=1;
-   while(result.nextCursor){if(++pages>40)throw new Error('La consulta supera 10.000 registros. Exporta por evento o implementa un reporte masivo.');result=(await live.fnSDK.httpsCallable(live.functions,'api')({action,...data,cursor:result.nextCursor})).data;items.push(...result.items);}
-   return items.sort((a,b)=>String(b.createdAt||b.updatedAt||'').localeCompare(String(a.createdAt||a.updatedAt||'')));
+   if(['registerGuest','requestAccess'].includes(action)&&!live.auth.currentUser)await live.authSDK.signInAnonymously(live.auth);
+   let result;try{result=await live.api(action,data);}catch(e){if(e.code==='permission-denied')throw Error('No está autorizado para esta operación. Revise sus datos, su acceso y el plazo del trámite.');if(e.code==='resource-exhausted')throw Error('El servicio alcanzó su cuota disponible. El equipo organizador debe revisar la capacidad antes de continuar.');throw e;}
+   const normalize=v=>v&&typeof v.toDate==='function'?v.toDate().toISOString():Array.isArray(v)?v.map(normalize):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).map(([k,val])=>[k,normalize(val)])):v;
+   return normalize(result);
  }
  const adminActions=['listEvents','saveEvent','publishEvent','listRegistrations','listAttendance','updateRegistration','saveConference','getSettings','updateSettings','listJobs','retryJob'];
  if(adminActions.includes(action)&&!user?.admin)throw new Error('Acceso exclusivo del administrador.');

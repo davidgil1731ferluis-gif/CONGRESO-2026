@@ -1,0 +1,10 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://*.google.com https://*.googleusercontent.com; connect-src https://*.google.com https://*.googleusercontent.com"></head><body><script>
+const channel=<?= JSON.stringify(channel) ?>,allowedOrigin=<?= JSON.stringify(origin) ?>;
+const send=m=>window.top.postMessage({...m,channel},allowedOrigin);
+window.addEventListener('message',event=>{
+ if(event.origin!==allowedOrigin||event.source!==window.top)return;
+ const m=event.data;if(!m||m.channel!==channel||m.type!=='request'||typeof m.id!=='string'||!m.request)return;
+ google.script.run.withSuccessHandler(r=>send({type:'result',id:m.id,...r})).withFailureHandler(()=>send({type:'result',id:m.id,ok:false,error:'No se pudo completar la operación de Drive.'})).sparkFiles(m.request);
+});
+send({type:'ready'});
+</script></body></html>

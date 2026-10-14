@@ -1,0 +1,10 @@
+export function createDriveBridge(url,{window:win=window,document:doc=document,timeout=90000}={}){
+ if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url||''))throw Error('Configure la URL de Apps Script para los archivos de Drive.');
+ const channel=crypto.randomUUID(),frame=doc.createElement('iframe'),pending=new Map();let peer,origin,readyResolve,readyReject;
+ const ready=new Promise((resolve,reject)=>{readyResolve=resolve;readyReject=reject;});
+ const timer=setTimeout(()=>readyReject(Error('Apps Script no respondió. Compruebe su publicación y la URL configurada.')),20000);
+ frame.hidden=true;frame.title='Conexión privada con Drive';frame.setAttribute('sandbox','allow-scripts allow-same-origin');frame.src=url+'?channel='+encodeURIComponent(channel);
+ const receive=e=>{const m=e.data;if(!m||m.channel!==channel||!/^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/.test(e.origin))return;if(m.type==='ready'&&!peer){peer=e.source;origin=e.origin;clearTimeout(timer);readyResolve();return;}if(e.source!==peer||e.origin!==origin||m.type!=='result')return;const p=pending.get(m.id);if(!p)return;clearTimeout(p.timer);pending.delete(m.id);m.ok?p.resolve(m.result):p.reject(Error(m.error||'No se pudo completar la operación de Drive.'));};
+ win.addEventListener('message',receive);doc.body.append(frame);
+ return {async call(action,data,idToken){if(!['uploadEvidence','downloadCertificate','downloadEvaluationReport'].includes(action))throw Error('Operación de archivos inválida.');await ready;const id=crypto.randomUUID();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(id);reject(Error('La operación demoró demasiado. Consulte su estado antes de reintentar.'));},timeout);pending.set(id,{resolve,reject,timer});peer.postMessage({type:'request',channel,id,request:{action,...data,idToken}},origin);});},dispose(){clearTimeout(timer);win.removeEventListener('message',receive);frame.remove();for(const p of pending.values()){clearTimeout(p.timer);p.reject(Error('Conexión cerrada.'));}pending.clear();}};
+}
