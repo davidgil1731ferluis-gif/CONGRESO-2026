@@ -1,7 +1,7 @@
-import {createSparkAPI} from './spark.mjs?v=spark-2';
+import {createSparkAPI} from './spark.mjs?v=spark-3';
 import {academicDemo,migrateAcademic} from './academic-demo.mjs';
 import {participation,checkCode} from './academic-domain.mjs';
-import {config} from './config.mjs?v=spark-2';
+import {config} from './config.mjs?v=spark-3';
 import {validateSchema,validateAnswers,attendanceGate,validateImage} from './domain.mjs?v=vivid-1';
 const key='eventflow-demo-v1'+(typeof location!=='undefined'&&new URLSearchParams(location.search).get('preview')==='academic'?'-academic-review':'');
 const clone=v=>structuredClone(v);
@@ -32,7 +32,7 @@ export async function init(){
  await new Promise(resolve=>{const unsub=authSDK.onAuthStateChanged(auth,u=>{user=u;unsub();resolve()})});
  return await currentUser();
 }
-export async function currentUser(){if(demo)return user;const u=live.auth.currentUser;if(!u||u.isAnonymous)return null;await u.reload();let admin=false;if(u.emailVerified){await live.api('myProfile');const marker=await live.firestoreSDK.getDoc(live.firestoreSDK.doc(live.db,'admins',u.uid));admin=marker.exists()&&marker.data().enabled===true;}return {uid:u.uid,email:u.email,name:u.displayName||u.email,admin,verified:u.emailVerified};}
+export async function currentUser(){if(demo)return user;const u=live.auth.currentUser;if(!u||u.isAnonymous)return null;await u.reload();let admin=false;if(u.emailVerified){const token=await u.getIdTokenResult();if(token.claims.email_verified!==true)await u.getIdToken(true);await live.api('myProfile');const marker=await live.firestoreSDK.getDoc(live.firestoreSDK.doc(live.db,'admins',u.uid));admin=marker.exists()&&marker.data().enabled===true;}return {uid:u.uid,email:u.email,name:u.displayName||u.email,admin,verified:u.emailVerified};}
 export async function login(email,password,signup=false,name=''){
  if(demo){email=email.trim().toLowerCase();let a=state.accounts.find(a=>a.email===email);if(!a&&email!=='admin@example.com'){a={uid:id(),email,name:name||'Participante demo',role:'attendee',activated:signup};state.accounts.push(a);persist();}user=email==='admin@example.com'?{uid:'demo-admin',email,name:'Administrador demo',admin:true,role:'admin'}:{...a,admin:false};return user;}
  const result=await live.authSDK[signup?'createUserWithEmailAndPassword':'signInWithEmailAndPassword'](live.auth,email,password);
