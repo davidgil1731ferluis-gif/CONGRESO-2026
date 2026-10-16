@@ -1,7 +1,7 @@
 import {createSparkAPI} from './spark.mjs?v=spark-3';
 import {academicDemo,migrateAcademic} from './academic-demo.mjs';
 import {participation,checkCode} from './academic-domain.mjs';
-import {config} from './config.mjs?v=spark-3';
+import {config} from './config.mjs?v=cic-2027-1';
 import {validateSchema,validateAnswers,attendanceGate,validateImage} from './domain.mjs?v=vivid-1';
 const key='eventflow-demo-v1'+(typeof location!=='undefined'&&new URLSearchParams(location.search).get('preview')==='academic'?'-academic-review':'');
 const clone=v=>structuredClone(v);
