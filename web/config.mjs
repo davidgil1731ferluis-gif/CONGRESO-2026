@@ -9,6 +9,6 @@ export const config={
   messagingSenderId:'251774778171',
   appId:'1:251774778171:web:511ec7ad6c57ede287151e'
  },
- appsScriptUrl:'', // URL pública /exec para evidencias y descargas privadas de Drive.
+ appsScriptUrl:'https://script.google.com/macros/s/AKfycbw30ILdPRe1GhnDe97oWQgirvUZsRTUhU5H2mvCMglYkcpRsGFMLCkW-Jr57NBjc8nEXw/exec', // URL pública /exec para evidencias y descargas privadas de Drive.
  brand:'EventFlow'
 };
